@@ -5,6 +5,7 @@ edition = "2021"
 readme = "readme.md"
 keywords = ["error", "derive", "enum"]
 description = "Provide a easy way to define an enum that represents errors with error codes, document comments and several other functionalities."
+license = "MIT/Apache-2.0"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
