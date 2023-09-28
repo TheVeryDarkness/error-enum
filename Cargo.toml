@@ -1,8 +1,25 @@
 [package]
-name = "error-with-codes"
+name = "error-enum"
 version = "0.1.0"
 edition = "2021"
+readme = "readme.md"
+keywords = ["error", "derive", "enum"]
+description = "Provide a easy way to define an enum that represents errors with error codes, document comments and several other functionalities."
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[lib]
+proc-macro = true
+
+[features]
+default = ["colored"]
+colored = ["dep:ansi_term"]
+
 [dependencies]
+quote = "1"
+syn = "2"
+proc-macro2 = "1"
+ansi_term = { version = "0.12", optional = true }
+
+[dev-dependencies]
+annotate-snippets = { version = "0.9.1" }
