@@ -7,13 +7,13 @@ use ansi_term::Color::Red;
 use proc_macro::TokenStream;
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{quote, ToTokens};
+use std::iter::once;
 use syn::{
-    parse, parse::Parse, parse_macro_input, Attribute, FieldsNamed, Generics, Ident, LitStr, Token,
-    Visibility,
+    braced, parse, parse::Parse, parse_macro_input, Attribute, FieldsNamed, Generics, Ident,
+    LitInt, LitStr, Token, Visibility,
 };
 
 struct ErrorVariant {
-    code: Ident,
     name: Ident,
     fields: FieldsNamed,
     msg: LitStr,
@@ -21,26 +21,19 @@ struct ErrorVariant {
 
 impl Parse for ErrorVariant {
     fn parse(input: parse::ParseStream) -> syn::Result<Self> {
-        let code = input.parse()?;
         let name = input.parse()?;
         let fields = input.parse()?;
         let msg = input.parse()?;
-        let _comma: Token![,] = input.parse()?;
-        Ok(Self {
-            code,
-            name,
-            fields,
-            msg,
-        })
+        Ok(Self { name, fields, msg })
     }
 }
 
-impl ToTokens for ErrorVariant {
-    fn to_tokens(&self, tokens: &mut TokenStream2) {
+impl ErrorVariant {
+    fn to_tokens(&self, code: &str, tokens: &mut TokenStream2) {
         let name = &self.name;
         let fields = &self.fields;
         let msg = &self.msg;
-        let code = format!("{}: ", self.code);
+        let code = format!("{}: ", code);
         tokens.extend(quote! {
             #[doc = #code]
             #[doc = #msg]
@@ -50,19 +43,13 @@ impl ToTokens for ErrorVariant {
 }
 
 impl ErrorVariant {
-    fn doc(&self) -> String {
-        format!("- `{}` ({}): {}", self.name, self.code, self.msg.value())
-    }
-    fn format(&self) -> TokenStream2 {
+    fn format(&self, code: &str) -> TokenStream2 {
         let name = &self.name;
         let fields = self
             .fields
             .named
             .iter()
             .map(|field| field.ident.as_ref().unwrap());
-        let code = format!("error[{}]", &self.code);
-        #[cfg(feature = "colored")]
-        let code = Red.paint(code).to_string();
         let msg = &self.msg;
         quote! {
             Self::#name { #(#fields, )* } => {
@@ -74,12 +61,98 @@ impl ErrorVariant {
     }
 }
 
+enum ErrorTree {
+    Prefix(LitInt, LitStr, Vec<ErrorTree>),
+    Variant(LitInt, ErrorVariant),
+}
+
+impl Parse for ErrorTree {
+    fn parse(input: parse::ParseStream) -> syn::Result<Self> {
+        if input.peek2(LitStr) {
+            let code = input.parse()?;
+            let desc = input.parse()?;
+            let children;
+            braced!(children in input);
+            let mut nodes = Vec::new();
+            while !children.is_empty() {
+                let node = children.parse()?;
+                nodes.push(node);
+            }
+            Ok(ErrorTree::Prefix(code, desc, nodes))
+        } else {
+            let code = input.parse()?;
+            let variant = input.parse()?;
+            let _comma: Token![,] = input.parse()?;
+            Ok(ErrorTree::Variant(code, variant))
+        }
+    }
+}
+
+impl ErrorTree {
+    fn get_variants<'s>(
+        &'s self,
+        prefix: String,
+    ) -> impl Iterator<Item = (String, &'s ErrorVariant)> {
+        match self {
+            Self::Prefix(code, _desc, children) => children
+                .iter()
+                .flat_map(|node| node.get_variants(format!("{prefix}{}", code.to_string())))
+                .collect::<Vec<_>>()
+                .into_iter(),
+            Self::Variant(code, var) => {
+                let prefix = format!("{prefix}{code}");
+                vec![(prefix, var)].into_iter()
+            }
+        }
+    }
+    fn get_nodes<'s>(
+        &'s self,
+        prefix: &str,
+        depth: usize,
+    ) -> impl Iterator<Item = (usize, String, Option<String>, String)> {
+        match self {
+            Self::Prefix(code, desc, children) => {
+                let prefix = format!("{}{}", prefix, code);
+                once((depth, prefix.clone(), None, desc.value()))
+                    .chain(
+                        children
+                            .iter()
+                            .flat_map(|node| node.get_nodes(&prefix, depth + 1)),
+                    )
+                    .collect::<Vec<_>>()
+                    .into_iter()
+            }
+            Self::Variant(code, var) => {
+                let prefix = format!("{}{}", prefix, code);
+                vec![(depth, prefix, Some(var.name.to_string()), var.msg.value())].into_iter()
+            }
+        }
+    }
+}
+
 struct ErrorEnum {
     attrs: Vec<Attribute>,
     vis: Visibility,
     name: Ident,
     generics: Generics,
-    variants: Vec<ErrorVariant>,
+    variants: Vec<(Ident, LitStr, ErrorTree)>,
+}
+
+impl ErrorEnum {
+    fn get_variants<'s>(&'s self) -> impl Iterator<Item = (String, &'s ErrorVariant)> {
+        self.variants
+            .iter()
+            .flat_map(|(ident, _, tree)| tree.get_variants(ident.to_string()))
+    }
+    fn get_nodes<'s>(&'s self) -> Vec<(usize, String, Option<String>, String)> {
+        self.variants
+            .iter()
+            .flat_map(|(ident, msg, tree)| {
+                let prefix = ident.to_string();
+                once((0, prefix.clone(), None, msg.value())).chain(tree.get_nodes(&prefix, 1))
+            })
+            .collect()
+    }
 }
 
 impl Parse for ErrorEnum {
@@ -91,7 +164,11 @@ impl Parse for ErrorEnum {
         let mut variants = Vec::new();
         while !input.is_empty() {
             let kind = input.parse()?;
-            variants.push(kind);
+            let inner;
+            let msg = input.parse()?;
+            braced!(inner in input);
+            let tree = inner.parse()?;
+            variants.push((kind, msg, tree));
         }
         Ok(Self {
             attrs,
@@ -108,9 +185,32 @@ impl ToTokens for ErrorEnum {
         let attrs = &self.attrs;
         let vis = &self.vis;
         let name = &self.name;
-        let variants = &self.variants;
         let generics = &self.generics;
-        let doc = self.variants.iter().map(|v| v.doc());
+        let doc = self
+            .get_nodes()
+            .into_iter()
+            .map(|(depth, code, name, desc)| {
+                let indent = "  ".repeat(depth);
+                if let Some(name) = name {
+                    format!("{indent}- `{code}`(**{name}**): {desc}")
+                } else {
+                    format!("{indent}- `{code}`: {desc}")
+                }
+            });
+        let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
+        let variants = self.get_variants();
+        let branches = variants.map(|(code, variant)| {
+            let code = format!("error[{}]", &code);
+            #[cfg(feature = "colored")]
+            let code = Red.paint(code).to_string();
+            variant.format(&code)
+        });
+        let variants = {
+            let mut tokens = TokenStream2::new();
+            self.get_variants()
+                .for_each(|(code, var)| var.to_tokens(&code, &mut tokens));
+            tokens
+        };
         tokens.extend(quote! {
             #[doc = "List of error variants:"]
             #(
@@ -118,13 +218,10 @@ impl ToTokens for ErrorEnum {
             )*
             #(#attrs)*
             #vis enum #name #generics {
-                #(
-                    #variants
-                )*
+                #variants
             }
         });
-        let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
-        let branches = self.variants.iter().map(ErrorVariant::format);
+
         tokens.extend(quote! {
             impl #impl_generics core::fmt::Display for #name #ty_generics #where_clause {
                 fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {

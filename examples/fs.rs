@@ -3,8 +3,14 @@ use std::path::PathBuf;
 
 error_type! {
     pub FileSystemError
-        E01 FileNotFound {path: PathBuf}
-            "File {path:?} not found.",
+        E "Errors." {
+            0 "File-Related Errors." {
+                0 FileNotFound {path: PathBuf}
+                    "File `{path:?}` not found.",
+                1 NotAFile {path: PathBuf}
+                    "Path `{path:?}` does not point to a file.",
+            }
+        }
 }
 
 fn main() {
