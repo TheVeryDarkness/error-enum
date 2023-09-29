@@ -43,13 +43,15 @@ impl ErrorVariant {
 }
 
 impl ErrorVariant {
-    fn format(&self, code: &str) -> TokenStream2 {
-        let name = &self.name;
-        let fields = self
-            .fields
+    fn get_field_names<'s>(&'s self) -> impl Iterator<Item = &'s Ident> {
+        self.fields
             .named
             .iter()
-            .map(|field| field.ident.as_ref().unwrap());
+            .map(|field| field.ident.as_ref().unwrap())
+    }
+    fn format(&self, code: &str) -> TokenStream2 {
+        let name = &self.name;
+        let fields = self.get_field_names();
         let msg = &self.msg;
         quote! {
             Self::#name { #(#fields, )* } => {
@@ -209,13 +211,7 @@ impl ToTokens for ErrorEnum {
                 }
             });
         let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
-        let variants = self.get_variants();
-        let branches = variants.map(|(code, variant)| {
-            let code = format!("error[{}]", &code);
-            #[cfg(feature = "colored")]
-            let code = Red.paint(code).to_string();
-            variant.format(&code)
-        });
+
         let variants = {
             let mut tokens = TokenStream2::new();
             self.get_variants()
@@ -233,9 +229,34 @@ impl ToTokens for ErrorEnum {
             }
         });
 
+        let variants = self.get_variants();
+        let branches = variants.map(|(code, variant)| {
+            let code = format!("error[{}]", &code);
+            #[cfg(feature = "colored")]
+            let code = Red.paint(code).to_string();
+            variant.format(&code)
+        });
         tokens.extend(quote! {
             impl #impl_generics core::fmt::Display for #name #ty_generics #where_clause {
                 fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+                    match self {
+                        #(#branches)*
+                    }
+                }
+            }
+        });
+
+        let variants = self.get_variants();
+        let branches = variants.map(|(code, variant)| {
+            let name = &variant.name;
+            quote! {
+                Self::#name { .. } => #code,
+            }
+        });
+        tokens.extend(quote! {
+            impl #impl_generics #name #ty_generics #where_clause {
+                /// Get code.
+                pub fn get_code(&self) -> &'static str {
                     match self {
                         #(#branches)*
                     }
