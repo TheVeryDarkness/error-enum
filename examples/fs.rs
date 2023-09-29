@@ -10,6 +10,7 @@ error_type! {
                 1 NotAFile {path: PathBuf}
                     "Path `{path:?}` does not point to a file.",
             }
+            1 "Access Denied." {}
         }
 }
 

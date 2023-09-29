@@ -135,21 +135,27 @@ struct ErrorEnum {
     vis: Visibility,
     name: Ident,
     generics: Generics,
-    variants: Vec<(Ident, LitStr, ErrorTree)>,
+    variants: Vec<(Ident, LitStr, Vec<ErrorTree>)>,
 }
 
 impl ErrorEnum {
     fn get_variants<'s>(&'s self) -> impl Iterator<Item = (String, &'s ErrorVariant)> {
-        self.variants
-            .iter()
-            .flat_map(|(ident, _, tree)| tree.get_variants(ident.to_string()))
+        self.variants.iter().flat_map(|(ident, _, tree)| {
+            tree.iter()
+                .flat_map(|node| node.get_variants(ident.to_string()))
+        })
     }
     fn get_nodes<'s>(&'s self) -> Vec<(usize, String, Option<String>, String)> {
         self.variants
             .iter()
             .flat_map(|(ident, msg, tree)| {
                 let prefix = ident.to_string();
-                once((0, prefix.clone(), None, msg.value())).chain(tree.get_nodes(&prefix, 1))
+                once((0, prefix.clone(), None, msg.value())).chain(
+                    tree.iter()
+                        .flat_map(|node| node.get_nodes(&prefix, 1))
+                        .collect::<Vec<_>>()
+                        .into_iter(),
+                )
             })
             .collect()
     }
@@ -164,11 +170,16 @@ impl Parse for ErrorEnum {
         let mut variants = Vec::new();
         while !input.is_empty() {
             let kind = input.parse()?;
-            let inner;
             let msg = input.parse()?;
+            let inner;
             braced!(inner in input);
-            let tree = inner.parse()?;
-            variants.push((kind, msg, tree));
+            let mut trees = Vec::new();
+            while !inner.is_empty() {
+                let tree = inner.parse()?;
+                trees.push(tree);
+            }
+            assert!(inner.is_empty());
+            variants.push((kind, msg, trees));
         }
         Ok(Self {
             attrs,
