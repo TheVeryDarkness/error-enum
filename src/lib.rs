@@ -55,7 +55,7 @@ impl ErrorVariant {
         let msg = &self.msg;
         quote! {
             Self::#name { #(#fields, )* } => {
-                ::core::write!{f, "{}: ", #code}?;
+                ::core::write!{f, "`{}`: ", #code}?;
                 ::core::write!{f, #msg}?;
                 ::core::result::Result::Ok(())
             }
