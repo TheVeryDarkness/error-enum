@@ -263,44 +263,6 @@ impl ToTokens for ErrorEnum {
                 }
             }
         });
-        /*
-        let mut vars = self.variants.iter();
-        if let Some(var) = vars.next() {
-            fn get_fields(var: &ErrorVariant) -> BTreeSet<&Ident> {
-                var.fields
-                    .named
-                    .iter()
-                    .flat_map(|name| name.ident.iter())
-                    .collect()
-            }
-            let mut fields = get_fields(var);
-            for var in vars {
-                fields = fields.intersection(&get_fields(var)).cloned().collect();
-            }
-            let accesser = fields.into_iter().map(|field| {
-                let branches = self
-                    .variants
-                    .iter()
-                    .map(|var| {
-                        let var = &var.name;
-                        quote! {
-                            #var { #field, .. } => {
-                                #field
-                            }
-                        }
-                    })
-                    .collect::<Vec<_>>();
-                quote! {
-                    fn field(&self) ->
-                }
-            });
-            tokens.extend(quote! {
-                impl #impl_generics core::fmt::Display for #name #ty_generics #where_clause {
-                    #(#accesser)*
-                }
-            })
-        }
-        */
     }
 }
 
