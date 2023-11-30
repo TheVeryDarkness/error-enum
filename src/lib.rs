@@ -6,58 +6,77 @@
 use ansi_term::Color::Red;
 use proc_macro::TokenStream;
 use proc_macro2::TokenStream as TokenStream2;
-use quote::{quote, ToTokens};
+use quote::{format_ident, quote, ToTokens};
 use std::iter::once;
 use syn::{
-    braced, parse, parse::Parse, parse_macro_input, Attribute, FieldsNamed, Generics, Ident,
-    LitInt, LitStr, Token, Visibility,
+    braced, parse, parse::Parse, parse_macro_input, Attribute, Fields, Generics, Ident, LitInt,
+    LitStr, Token, Variant, Visibility,
 };
 
 struct ErrorVariant {
-    name: Ident,
-    fields: FieldsNamed,
+    variant: Variant,
     msg: LitStr,
 }
 
 impl Parse for ErrorVariant {
     fn parse(input: parse::ParseStream) -> syn::Result<Self> {
-        let name = input.parse()?;
-        let fields = input.parse()?;
+        let variant = input.parse()?;
         let msg = input.parse()?;
-        Ok(Self { name, fields, msg })
+        Ok(Self { variant, msg })
     }
 }
 
 impl ErrorVariant {
     fn to_tokens(&self, code: &str, tokens: &mut TokenStream2) {
-        let name = &self.name;
-        let fields = &self.fields;
+        let variant = &self.variant;
         let msg = &self.msg;
         let code = format!("{}: ", code);
         tokens.extend(quote! {
             #[doc = #code]
             #[doc = #msg]
-            #name #fields,
+            #variant,
         })
     }
 }
 
 impl ErrorVariant {
-    fn get_field_names<'s>(&'s self) -> impl Iterator<Item = &'s Ident> {
-        self.fields
-            .named
-            .iter()
-            .map(|field| field.ident.as_ref().unwrap())
-    }
-    fn format(&self, code: &str) -> TokenStream2 {
-        let name = &self.name;
-        let fields = self.get_field_names();
+    fn fmt_self(&self) -> TokenStream2 {
+        let name = &self.variant.ident;
         let msg = &self.msg;
-        quote! {
-            Self::#name { #(#fields, )* } => {
-                ::core::write!{f, "`{}`: ", #code}?;
-                ::core::write!{f, #msg}?;
-                ::core::result::Result::Ok(())
+        match &self.variant.fields {
+            Fields::Named(fields) => {
+                let fields = fields
+                    .named
+                    .iter()
+                    .map(|field| field.ident.as_ref().unwrap());
+                quote! {
+                    Self::#name { #(#fields, )* } => {
+                        ::core::write!{f, #msg}?;
+                        ::core::result::Result::Ok(())
+                    }
+                }
+            }
+            Fields::Unnamed(unnamed) => {
+                let elements = unnamed
+                    .unnamed
+                    .iter()
+                    .enumerate()
+                    .map(|(i, _)| format_ident!("_{i}"))
+                    .collect::<Vec<_>>();
+                quote! {
+                    Self::#name ( #(#elements, )* ) => {
+                        ::core::write!{f, #msg, #(#elements, )*}?;
+                        ::core::result::Result::Ok(())
+                    }
+                }
+            }
+            Fields::Unit => {
+                quote! {
+                    Self::#name => {
+                        ::core::write!{f, #msg}?;
+                        ::core::result::Result::Ok(())
+                    }
+                }
             }
         }
     }
@@ -126,7 +145,13 @@ impl ErrorTree {
             }
             Self::Variant(code, var) => {
                 let prefix = format!("{}{}", prefix, code);
-                vec![(depth, prefix, Some(var.name.to_string()), var.msg.value())].into_iter()
+                vec![(
+                    depth,
+                    prefix,
+                    Some(var.variant.ident.to_string()),
+                    var.msg.value(),
+                )]
+                .into_iter()
             }
         }
     }
@@ -229,36 +254,49 @@ impl ToTokens for ErrorEnum {
             }
         });
 
-        let variants = self.get_variants();
-        let branches = variants.map(|(code, variant)| {
-            let code = format!("error[{}]", &code);
-            #[cfg(feature = "colored")]
-            let code = Red.paint(code).to_string();
-            variant.format(&code)
-        });
         tokens.extend(quote! {
-            impl #impl_generics core::fmt::Display for #name #ty_generics #where_clause {
-                fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-                    match self {
-                        #(#branches)*
-                    }
+            impl #impl_generics ::core::fmt::Display for #name #ty_generics #where_clause {
+                fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+                    f.write_str(self.get_prefix())?;
+                    self.fmt_self(f)?;
+                    ::core::result::Result::Ok(())
                 }
             }
         });
 
-        let variants = self.get_variants();
-        let branches = variants.map(|(code, variant)| {
-            let name = &variant.name;
+        let get_code = self.get_variants().map(|(code, variant)| {
+            let name = &variant.variant.ident;
             quote! {
                 Self::#name { .. } => #code,
             }
         });
+        let get_prefix = self.get_variants().map(|(code, variant)| {
+            let name = &variant.variant.ident;
+            let prefix = format!("error[{}]", &code);
+            #[cfg(feature = "colored")]
+            let prefix = Red.paint(prefix).to_string();
+            let prefix = format!("{prefix}: ");
+            quote! {
+                Self::#name {..} => #prefix,
+            }
+        });
+        let fmt_self = self.get_variants().map(|(_, variant)| variant.fmt_self());
         tokens.extend(quote! {
             impl #impl_generics #name #ty_generics #where_clause {
                 /// Get code.
                 pub fn get_code(&self) -> &'static str {
                     match self {
-                        #(#branches)*
+                        #(#get_code)*
+                    }
+                }
+                pub fn get_prefix(&self) -> &'static str {
+                    match self {
+                        #(#get_prefix)*
+                    }
+                }
+                fn fmt_self(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+                    match self {
+                        #(#fmt_self)*
                     }
                 }
             }
@@ -290,8 +328,10 @@ mod tests {
     fn test() {
         let output: ErrorEnum = syn::parse2(quote! {
             FileSystemError
-                E01 FileNotFound {path: std::path::Path}
+                E "错误" {
+                    01 FileNotFound {path: std::path::Path}
                     "{path} not found.",
+                }
         })
         .unwrap();
         let output = output.into_token_stream();

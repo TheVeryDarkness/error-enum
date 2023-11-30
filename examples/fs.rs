@@ -6,11 +6,14 @@ error_type! {
         E "Errors." {
             0 "File-Related Errors." {
                 0 FileNotFound {path: PathBuf}
-                    "File `{path:?}` not found.",
-                1 NotAFile {path: PathBuf}
-                    "Path `{path:?}` does not point to a file.",
+                    "File {path:?} not found.",
+                1 NotAFile (PathBuf)
+                    "Path {0:?} does not point to a file.",
             }
-            1 "Access Denied." {}
+            1 "Access Denied." {
+                0 AccessDenied
+                    "Access Denied.",
+            }
         }
 }
 
@@ -19,6 +22,8 @@ fn main() {
         "{}",
         FileSystemError::FileNotFound {
             path: "fs.rs".into()
-        }
-    )
+        },
+    );
+    println!("{}", FileSystemError::NotAFile("target".into()),);
+    println!("{}", FileSystemError::AccessDenied);
 }
