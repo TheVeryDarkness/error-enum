@@ -69,23 +69,6 @@ impl Config {
     pub fn suffix(&self) -> ansi_term::Suffix {
         self.style_message.suffix()
     }
-    pub fn _fmt_msg(&self, prefix: &str, desc: &str) -> String {
-        #[cfg(feature = "colored")]
-        {
-            format!(
-                "{}{}: {}{}{}",
-                self.prefix(),
-                prefix,
-                self.infix(),
-                desc,
-                self.suffix(),
-            )
-        }
-        #[cfg(not(feature = "colored"))]
-        {
-            format!("{}: {}", prefix, desc,)
-        }
-    }
     pub fn on_category(&mut self, _category: &Ident) {
         #[cfg(feature = "colored")]
         {
