@@ -813,7 +813,7 @@ pub fn error_type(token: TokenStream) -> TokenStream {
 
 #[cfg(test)]
 mod tests {
-    use crate::ErrorEnum;
+    use crate::{Config, ErrorEnum};
     use quote::{quote, ToTokens};
 
     #[test]
@@ -835,8 +835,8 @@ mod tests {
     fn colored() {
         let output: ErrorEnum = syn::parse2(quote! {
             FileSystemError
-                #[color = (0xaf, 0, 0)]
-                #[color = (0xa8, 0xa8, 0xa8)]
+                #[fg = (0xaf, 0, 0)]
+                #[bg = (0xa8, 0xa8, 0xa8)]
                 E "错误" {
                     01 FileNotFound {path: std::path::Path}
                     "{path} not found.",
@@ -897,7 +897,6 @@ mod tests {
     fn deep() {
         let output: ErrorEnum = syn::parse2(quote! {
             FileSystemError
-                #[color = (0xaf, 0, 0)]
                 E "错误" {
                     0 "文件错误" {
                         0 AccessDenied
@@ -914,7 +913,6 @@ mod tests {
     fn nested() {
         let output: ErrorEnum = syn::parse2(quote! {
             FileSystemError
-                #[color = (0xaf, 0, 0)]
                 E "错误" {
                     #[nested]
                     01 FileError (FileError)
@@ -927,6 +925,34 @@ mod tests {
     }
 
     #[test]
+    fn check_config() {
+        let output: ErrorEnum = syn::parse2(quote! {
+            FileSystemError
+                E "错误" {
+                    #[nested]
+                    01 FileError (FileError)
+                    "{0}",
+                }
+        })
+        .unwrap();
+        for (config, number, _variant) in output.get_variants() {
+            assert_eq!(config.category, 'E');
+            #[cfg(feature = "colored")]
+            assert_eq!(
+                format!("{config:?}"), 
+                "Config { category: 'E', nested: true, style_prefix: Style { fg(Red) }, style_message: Style {} }",
+            );
+            #[cfg(not(feature = "colored"))]
+            assert_eq!(
+                format!("{config:?}"),
+                "Config { category: 'E', nested: true }",
+            );
+            assert_eq!(number, "01");
+        }
+    }
+
+    #[test]
+    #[cfg(feature = "colored")]
     #[should_panic]
     fn rgb_2() {
         let output: ErrorEnum = syn::parse2(quote! {
@@ -943,11 +969,100 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "colored")]
+    #[should_panic]
+    fn rgb_wrong() {
+        let output: ErrorEnum = syn::parse2(quote! {
+            FileSystemError
+                #[color = (4usize, -3, 2*5)]
+                E "错误" {
+                    01 FileError (FileError)
+                    "{0}",
+                }
+        })
+        .unwrap();
+        let output = output.into_token_stream();
+        eprintln!("{:#}", output);
+    }
+
+    #[test]
+    #[cfg(feature = "colored")]
+    #[should_panic]
+    fn color_bool() {
+        let output: ErrorEnum = syn::parse2(quote! {
+            FileSystemError
+                #[color = true]
+                E "错误" {
+                    01 FileError (FileError)
+                    "{0}",
+                }
+        })
+        .unwrap();
+        let output = output.into_token_stream();
+        eprintln!("{:#}", output);
+    }
+
+    #[test]
+    #[should_panic]
+    fn attribute_list() {
+        let output: ErrorEnum = syn::parse2(quote! {
+            FileSystemError
+                #[nested(true)]
+                E "错误" {
+                    01 FileError (FileError)
+                    "{0}",
+                }
+        })
+        .unwrap();
+        let output = output.into_token_stream();
+        eprintln!("{:#}", output);
+    }
+
+    #[test]
     #[should_panic]
     fn path() {
         let output: ErrorEnum = syn::parse2(quote! {
             FileSystemError
                 #[nest::ed]
+                E "错误" {
+                    01 FileError (FileError)
+                    "{0}",
+                }
+        })
+        .unwrap();
+        let output = output.into_token_stream();
+        eprintln!("{:#}", output);
+    }
+
+    #[test]
+    #[should_panic]
+    fn unsupported_value() {
+        let output: ErrorEnum = syn::parse2(quote! {
+            FileSystemError
+                #[fg = true || false]
+                E "错误" {
+                    01 FileError (FileError)
+                    "{0}",
+                }
+        })
+        .unwrap();
+        let output = output.into_token_stream();
+        eprintln!("{:#}", output);
+    }
+
+    #[test]
+    #[should_panic]
+    fn config_new() {
+        Config::new("TLE".to_owned());
+    }
+
+    #[test]
+    #[cfg(feature = "colored")]
+    #[should_panic]
+    fn wrong_color() {
+        let output: ErrorEnum = syn::parse2(quote! {
+            FileSystemError
+                #[color = "blite"]
                 E "错误" {
                     01 FileError (FileError)
                     "{0}",
