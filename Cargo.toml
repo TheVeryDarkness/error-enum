@@ -17,8 +17,8 @@ default = ["colored"]
 colored = ["dep:ansi_term"]
 
 [dependencies]
+syn = { version = "2", features = ["full"] }
 quote = "1"
-syn = "2"
 proc-macro2 = "1"
 ansi_term = { version = "0.12", optional = true }
 
