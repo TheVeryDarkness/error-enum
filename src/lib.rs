@@ -43,6 +43,9 @@ impl<'i> Config<'i> {
         {
             let style_prefix = Style::default();
             let style_message = Style::default();
+            // Just give it a default color.
+            #[cfg(feature = "colored")]
+            let style_prefix = style_prefix.fg(Color::Red);
             Self {
                 category,
                 nested,
@@ -67,13 +70,7 @@ impl<'i> Config<'i> {
     pub fn suffix(&self) -> ansi_term::Suffix {
         self.style_message.suffix()
     }
-    pub fn on_category(&mut self, _category: &Ident) {
-        // Just give it a default color.
-        #[cfg(feature = "colored")]
-        {
-            self.style_prefix = self.style_prefix.fg(Color::Red);
-        }
-    }
+    pub fn on_category(&mut self, _category: &Ident) {}
     pub fn on_attrs(&mut self, attrs: &Vec<Attribute>) {
         for attr in attrs {
             self.on_attr(attr)
