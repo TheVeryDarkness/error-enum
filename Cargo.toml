@@ -1,9 +1,9 @@
 [package]
 name = "error-enum"
-version = "0.2.2"
+version = "0.3.0"
 edition = "2021"
 readme = "readme.md"
-keywords = ["error", "derive", "enum"]
+keywords = ["error", "derive", "enum", "tree"]
 description = "Provide a easy way to define an enum that represents errors with error codes, document comments and several other functionalities."
 license = "MIT/Apache-2.0"
 
