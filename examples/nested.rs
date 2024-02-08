@@ -4,7 +4,7 @@ use std::path::PathBuf;
 error_type! {
     pub FileSystemError
         #[nested]
-        E "Errors." {
+        Error "Errors." {
             0 FileError (FileError)
                 "{0}",
         }
@@ -12,7 +12,7 @@ error_type! {
 
 error_type! {
     pub FileError
-        E "Errors." {
+        Error "Errors." {
             0 "File-Related Errors." {
                 0 FileNotFound {path: PathBuf}
                     "File {path:?} not found.",

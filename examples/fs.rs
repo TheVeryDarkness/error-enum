@@ -3,7 +3,7 @@ use std::path::PathBuf;
 
 error_type! {
     pub FileSystemError
-        E "Errors." {
+        Error "Errors." {
             0 "File-Related Errors." {
                 0 FileNotFound {path: PathBuf}
                     "File {path:?} not found.",
@@ -15,7 +15,7 @@ error_type! {
                     "Access Denied.",
             }
         }
-        W "Warnings." {
+        Warn "Warnings." {
             0 "File-Related Errors." {
                 0 FileTooLarge {path: PathBuf}
                     "File {path:?} is too big. Consider read it with stream or in parts.",

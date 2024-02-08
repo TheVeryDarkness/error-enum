@@ -28,18 +28,16 @@ use syn::{
 
 /// Configuration for each variant.
 #[derive(Clone, Copy, Debug)]
-struct Config {
-    category: char,
+struct Config<'i> {
+    category: &'i str,
     nested: bool,
     #[cfg(feature = "colored")]
     style_prefix: Style,
     #[cfg(feature = "colored")]
     style_message: Style,
 }
-impl Config {
-    pub fn new(category: String) -> Self {
-        assert_eq!(category.len(), 1, "Length of category can only be 1.");
-        let category = category.chars().next().expect("Category can't be empty.");
+impl<'i> Config<'i> {
+    pub fn new(category: &'i str) -> Self {
         let nested = false;
         #[cfg(feature = "colored")]
         {
@@ -70,14 +68,10 @@ impl Config {
         self.style_message.suffix()
     }
     pub fn on_category(&mut self, _category: &Ident) {
+        // Just give it a default color.
         #[cfg(feature = "colored")]
         {
-            let category = _category;
-            match category.to_string().as_str() {
-                "E" => self.style_prefix = self.style_prefix.fg(Color::Red),
-                "W" => self.style_prefix = self.style_prefix.fg(Color::Yellow),
-                _ => {}
-            }
+            self.style_prefix = self.style_prefix.fg(Color::Red);
         }
     }
     pub fn on_attrs(&mut self, attrs: &Vec<Attribute>) {
@@ -366,12 +360,12 @@ impl ErrorVariant {
             quote! {
                 Self::#name (nested) => {
                     let number = nested.get_number();
-                    let category = nested.get_category();
+                    let category = nested.get_category().chars().next().unwrap().to_uppercase();
                     ::std::borrow::Cow::Owned(::std::format!("{}{}{}", category, #number, number))
                 }
             }
         } else {
-            let category = cfg.category;
+            let category = cfg.category.chars().next().unwrap().to_uppercase();
             let code = format!("{category}{number}");
             quote! {
                 Self::#name {..} => ::std::borrow::Cow::Borrowed(#code),
@@ -382,12 +376,18 @@ impl ErrorVariant {
         let name = &self.variant.ident;
         // eprintln!("{:?}", cfg);
         if cfg.nested {
-            let prefix = quote! {::std::format!("error[{}{}]", #number, nested.get_code())};
             quote! {
-                Self::#name (nested) => ::std::borrow::Cow::Owned(#prefix),
+                Self::#name (nested) => {
+                    let category = nested.get_category();
+                    let short = category.chars().next().unwrap().to_uppercase();
+                    let prefix = ::std::format!("{}[{}{}{}]", category, short, #number, nested.get_number());
+                    ::std::borrow::Cow::Owned(prefix)
+                },
             }
         } else {
-            let prefix = format!("error[{}]", &number);
+            let category = cfg.category;
+            let short = category.chars().next().unwrap().to_uppercase();
+            let prefix = format!("{}[{}{}]", category, short, &number);
             quote! {
                 Self::#name {..} => ::std::borrow::Cow::Borrowed(#prefix),
             }
@@ -413,11 +413,16 @@ impl ErrorVariant {
         let infix = quote! {};
         #[cfg(not(feature = "colored"))]
         let suffix = quote! {};
-        let get_code = if cfg.nested {
-            quote! {&self.get_code()}
+        let get_prefix = if cfg.nested {
+            quote! {&self.get_prefix()}
         } else {
-            let code = format!("{}{}", cfg.category, number);
-            quote! {#code}
+            let prefix = format!(
+                "{}[{}{}]",
+                cfg.category,
+                cfg.category.chars().next().unwrap().to_uppercase(),
+                number,
+            );
+            quote! {#prefix}
         };
         match &self.variant.fields {
             Fields::Named(fields) => {
@@ -429,7 +434,7 @@ impl ErrorVariant {
                 quote! {
                     Self::#name { #(#fields, )* } => {
                         #prefix
-                        f.write_str(#get_code)?;
+                        f.write_str(#get_prefix)?;
                         f.write_str(": ")?;
                         #infix
                         ::core::write!{f, #msg}?;
@@ -448,7 +453,7 @@ impl ErrorVariant {
                     quote! {
                         Self::#name ( nested ) => {
                             #prefix
-                            f.write_str(#get_code)?;
+                            f.write_str(#get_prefix)?;
                             f.write_str(": ")?;
                             #infix
                             ::core::write!{f, #msg, nested.get_desc()}?;
@@ -466,7 +471,7 @@ impl ErrorVariant {
                     quote! {
                         Self::#name ( #(#elements, )* ) => {
                             #prefix
-                            f.write_str(#get_code)?;
+                            f.write_str(#get_prefix)?;
                             f.write_str(": ")?;
                             #infix
                             ::core::write!{f, #msg, #(#elements, )*}?;
@@ -481,7 +486,7 @@ impl ErrorVariant {
                 quote! {
                     Self::#name => {
                         #prefix
-                        f.write_str(#get_code)?;
+                        f.write_str(#get_prefix)?;
                         f.write_str(": ")?;
                         #infix
                         ::core::write!{f, #msg}?;
@@ -529,9 +534,9 @@ impl ErrorTree {
     /// - [ErrorVariant].
     fn get_variants<'s>(
         &'s self,
-        config: Config,
+        config: Config<'s>,
         prenumber: &'_ str,
-    ) -> impl Iterator<Item = (Config, String, &'s ErrorVariant)> {
+    ) -> impl Iterator<Item = (Config<'s>, String, &'s ErrorVariant)> {
         match self {
             Self::Prefix(attrs, postnumber, _desc, children) => children
                 .iter()
@@ -556,10 +561,10 @@ impl ErrorTree {
     /// - Message (for [Display](core::fmt::Display)).
     fn get_nodes<'s>(
         &'s self,
-        config: Config,
+        config: Config<'s>,
         prenumber: &str,
         depth: usize,
-    ) -> impl Iterator<Item = (Config, usize, String, Option<String>, String)> {
+    ) -> impl Iterator<Item = (Config<'s>, usize, String, Option<String>, String)> {
         match self {
             Self::Prefix(_attrs, postnumber, desc, children) => {
                 let number = format!("{}{}", prenumber, postnumber);
@@ -592,7 +597,7 @@ struct ErrorEnum {
     vis: Visibility,
     name: Ident,
     generics: Generics,
-    variants: Vec<(Vec<Attribute>, Ident, LitStr, Vec<ErrorTree>)>,
+    variants: Vec<(Vec<Attribute>, Ident, String, LitStr, Vec<ErrorTree>)>,
 }
 
 impl ErrorEnum {
@@ -600,13 +605,15 @@ impl ErrorEnum {
     /// - Code.
     /// - [ErrorVariant].
     fn get_variants<'s>(&'s self) -> impl Iterator<Item = (Config, String, &'s ErrorVariant)> {
-        self.variants.iter().flat_map(|(attrs, category, _, tree)| {
-            let mut config = Config::new(category.to_string());
-            config.on_attrs(attrs);
-            config.on_category(category);
-            tree.iter()
-                .flat_map(move |node| node.get_variants(config, ""))
-        })
+        self.variants
+            .iter()
+            .flat_map(|(attrs, category, category_string, _, tree)| {
+                let mut config = Config::new(&category_string);
+                config.on_attrs(attrs);
+                config.on_category(category);
+                tree.iter()
+                    .flat_map(move |node| node.get_variants(config, ""))
+            })
     }
     /// - [Config].
     /// - Depth.
@@ -616,8 +623,8 @@ impl ErrorEnum {
     fn get_nodes<'s>(&'s self) -> Vec<(Config, usize, String, Option<String>, String)> {
         self.variants
             .iter()
-            .flat_map(|(attrs, category, msg, tree)| {
-                let mut config = Config::new(category.to_string());
+            .flat_map(|(attrs, category, category_string, msg, tree)| {
+                let mut config = Config::new(&category_string);
                 config.on_category(category);
                 config.on_attrs(attrs);
                 once((config, 0, String::new(), None, msg.value())).chain(
@@ -640,7 +647,8 @@ impl Parse for ErrorEnum {
         let mut variants = Vec::new();
         while !input.is_empty() {
             let attrs = input.call(Attribute::parse_outer)?;
-            let kind = input.parse()?;
+            let category: syn::Ident = input.parse()?;
+            let category_string = category.to_string();
             let msg = input.parse()?;
             let inner;
             braced!(inner in input);
@@ -650,7 +658,7 @@ impl Parse for ErrorEnum {
                 trees.push(tree);
             }
             assert!(inner.is_empty());
-            variants.push((attrs, kind, msg, trees));
+            variants.push((attrs, category, category_string, msg, trees));
         }
         Ok(Self {
             attrs,
@@ -734,7 +742,7 @@ impl ToTokens for ErrorEnum {
         tokens.extend(quote! {
             impl #impl_generics #name #ty_generics #where_clause {
                 /// Write error category like `E`.
-                pub fn get_category(&self) -> ::core::primitive::char {
+                pub fn get_category(&self) -> &'static ::core::primitive::str {
                     match self {
                         #(#get_category)*
                     }
@@ -762,6 +770,7 @@ impl ToTokens for ErrorEnum {
                         #(#fmt_desc)*
                     }
                 }
+                /// Get error description.
                 pub fn get_desc(&self) -> String {
                     match self {
                         #(#get_desc)*
@@ -813,7 +822,7 @@ pub fn error_type(token: TokenStream) -> TokenStream {
 
 #[cfg(test)]
 mod tests {
-    use crate::{Config, ErrorEnum};
+    use crate::ErrorEnum;
     use quote::{quote, ToTokens};
 
     #[test]
@@ -928,7 +937,7 @@ mod tests {
     fn check_config() {
         let output: ErrorEnum = syn::parse2(quote! {
             FileSystemError
-                E "错误" {
+                Error "错误" {
                     #[nested]
                     01 FileError (FileError)
                     "{0}",
@@ -936,11 +945,11 @@ mod tests {
         })
         .unwrap();
         for (config, number, _variant) in output.get_variants() {
-            assert_eq!(config.category, 'E');
+            assert_eq!(config.category, "Error");
             #[cfg(feature = "colored")]
             assert_eq!(
-                format!("{config:?}"), 
-                "Config { category: 'E', nested: true, style_prefix: Style { fg(Red) }, style_message: Style {} }",
+                format!("{config:?}"),
+                r#"Config { category: "Error", nested: true, style_prefix: Style { fg(Red) }, style_message: Style {} }"#,
             );
             #[cfg(not(feature = "colored"))]
             assert_eq!(
@@ -1048,12 +1057,6 @@ mod tests {
         .unwrap();
         let output = output.into_token_stream();
         eprintln!("{:#}", output);
-    }
-
-    #[test]
-    #[should_panic]
-    fn config_new() {
-        Config::new("TLE".to_owned());
     }
 
     #[test]
