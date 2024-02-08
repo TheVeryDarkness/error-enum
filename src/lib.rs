@@ -1,11 +1,20 @@
 //! To generate [Display](core::fmt::Display) implementation and
 //! documentation comments for error types.
+//!
+//! |     Concept      |            Example             |
+//! |:----------------:|:------------------------------:|
+//! |      Number      |             `1234`             |
+//! |       Code       |            `E1234`             |
+//! |     Category     |              `E`               |
+//! |       Kind       |         `error[E1234]`         |
+//! | Message Category |        `error[E1234]: `        |
+//! |   Description    |        `Access denied.`        |
+//! |     Message      | `error[E1234]: Access denied.` |
 
 #![warn(rust_2021_compatibility, rustdoc::all, missing_docs)]
 
-use ansi_term::Color;
 #[cfg(feature = "colored")]
-use ansi_term::Style;
+use ansi_term::{Color, Style};
 use proc_macro::TokenStream;
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{format_ident, quote, ToTokens};
@@ -13,28 +22,87 @@ use std::iter::once;
 use syn::{
     braced,
     parse::{self, Parse},
-    parse_macro_input, Attribute, Expr, ExprLit, ExprTuple, Fields, Generics, Ident, Lit, LitInt,
-    LitStr, Meta, Token, Variant, Visibility,
+    parse_macro_input, Attribute, Fields, Generics, Ident, LitInt, LitStr, Meta, Token, Variant,
+    Visibility,
 };
 
 /// Configuration for each variant.
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Copy, Debug)]
 struct Config {
+    category: char,
     nested: bool,
     #[cfg(feature = "colored")]
-    style: Style,
+    style_prefix: Style,
+    #[cfg(feature = "colored")]
+    style_message: Style,
 }
 impl Config {
-    pub fn from_attrs(attrs: &Vec<Attribute>) -> Self {
-        let mut res = Self::default();
-        res.on_attrs(attrs);
-        res
+    pub fn new(category: String) -> Self {
+        assert_eq!(category.len(), 1, "Length of category can only be 1.");
+        let category = category.chars().next().expect("Category can't be empty.");
+        let nested = false;
+        #[cfg(feature = "colored")]
+        {
+            let style_prefix = Style::default();
+            let style_message = Style::default();
+            Self {
+                category,
+                nested,
+                style_prefix,
+                style_message,
+            }
+        }
+        #[cfg(not(feature = "colored"))]
+        {
+            Self { category, nested }
+        }
+    }
+    #[cfg(feature = "colored")]
+    pub fn prefix(&self) -> ansi_term::Prefix {
+        self.style_prefix.prefix()
+    }
+    #[cfg(feature = "colored")]
+    pub fn infix(&self) -> ansi_term::Infix {
+        self.style_prefix.infix(self.style_message)
+    }
+    #[cfg(feature = "colored")]
+    pub fn suffix(&self) -> ansi_term::Suffix {
+        self.style_message.suffix()
+    }
+    pub fn _fmt_msg(&self, prefix: &str, desc: &str) -> String {
+        #[cfg(feature = "colored")]
+        {
+            format!(
+                "{}{}: {}{}{}",
+                self.prefix(),
+                prefix,
+                self.infix(),
+                desc,
+                self.suffix(),
+            )
+        }
+        #[cfg(not(feature = "colored"))]
+        {
+            format!("{}: {}", prefix, desc,)
+        }
+    }
+    pub fn on_category(&mut self, _category: &Ident) {
+        #[cfg(feature = "colored")]
+        {
+            let category = _category;
+            match category.to_string().as_str() {
+                "E" => self.style_prefix = self.style_prefix.fg(Color::Red),
+                "W" => self.style_prefix = self.style_prefix.fg(Color::Yellow),
+                _ => {}
+            }
+        }
     }
     pub fn on_attrs(&mut self, attrs: &Vec<Attribute>) {
         for attr in attrs {
             self.on_attr(attr)
         }
     }
+    #[cfg(feature = "colored")]
     fn lit_str_to_color(str: &LitStr) -> Color {
         let str = str.value();
         match str.as_str() {
@@ -49,16 +117,17 @@ impl Config {
             _ => panic!("Unexpected color `{}`.", str),
         }
     }
-    fn rgb_tuple_to_color(tuple: &ExprTuple) -> Color {
+    #[cfg(feature = "colored")]
+    fn rgb_tuple_to_color(tuple: &syn::ExprTuple) -> Color {
         assert!(
             tuple.elems.len() == 3,
-            "RGB color should has 3 componenets."
+            "RGB color should have 3 componenets."
         );
         let mut iter = tuple.elems.iter();
         let mut get_component = || -> u8 {
             let component = iter.next().unwrap();
-            if let Expr::Lit(ExprLit {
-                lit: Lit::Int(int),
+            if let syn::Expr::Lit(syn::ExprLit {
+                lit: syn::Lit::Int(int),
                 attrs: _attrs,
             }) = component
             {
@@ -76,56 +145,61 @@ impl Config {
                 unimplemented!("Attribute list.");
             }
             Meta::NameValue(name_value) => {
-                if let Some(ident) = name_value.path.get_ident() {
+                if let Some(_ident) = name_value.path.get_ident() {
                     #[cfg(feature = "colored")]
                     {
+                        let ident = _ident;
                         if ident == "color" || ident == "foreground" || ident == "fg" {
                             match &name_value.value {
-                                Expr::Lit(literal) => {
+                                syn::Expr::Lit(literal) => {
                                     if !literal.attrs.is_empty() {
                                         eprintln!("Attributes in literal is ignored.");
                                     }
                                     match &literal.lit {
-                                        Lit::Int(int) => {
-                                            res.style = res.style.fg(Color::Fixed(
+                                        syn::Lit::Int(int) => {
+                                            res.style_prefix = res.style_prefix.fg(Color::Fixed(
                                                 int.base10_parse().expect("Invalid color."),
                                             ));
                                         }
-                                        Lit::Str(str) => {
-                                            res.style = res.style.fg(Self::lit_str_to_color(str))
+                                        syn::Lit::Str(str) => {
+                                            res.style_prefix =
+                                                res.style_prefix.fg(Self::lit_str_to_color(str))
                                         }
                                         _ => {
                                             unimplemented!("Unsupported literal in MetaNameValue.")
                                         }
                                     }
                                 }
-                                Expr::Tuple(tuple) => {
-                                    res.style = res.style.fg(Self::rgb_tuple_to_color(tuple))
+                                syn::Expr::Tuple(tuple) => {
+                                    res.style_prefix =
+                                        res.style_prefix.fg(Self::rgb_tuple_to_color(tuple))
                                 }
                                 _ => unimplemented!("Unsupported expression in MetaNameValue."),
                             }
                         } else if ident == "background" || ident == "bg" {
                             match &name_value.value {
-                                Expr::Lit(literal) => {
+                                syn::Expr::Lit(literal) => {
                                     if !literal.attrs.is_empty() {
                                         eprintln!("Attributes in literal is ignored.");
                                     }
                                     match &literal.lit {
-                                        Lit::Int(int) => {
-                                            res.style = res.style.on(Color::Fixed(
+                                        syn::Lit::Int(int) => {
+                                            res.style_prefix = res.style_prefix.on(Color::Fixed(
                                                 int.base10_parse().expect("Invalid color."),
                                             ));
                                         }
-                                        Lit::Str(str) => {
-                                            res.style = res.style.on(Self::lit_str_to_color(str));
+                                        syn::Lit::Str(str) => {
+                                            res.style_prefix =
+                                                res.style_prefix.on(Self::lit_str_to_color(str));
                                         }
                                         _ => {
                                             unimplemented!("Unsupported literal in MetaNameValue.")
                                         }
                                     }
                                 }
-                                Expr::Tuple(tuple) => {
-                                    res.style = res.style.on(Self::rgb_tuple_to_color(tuple))
+                                syn::Expr::Tuple(tuple) => {
+                                    res.style_prefix =
+                                        res.style_prefix.on(Self::rgb_tuple_to_color(tuple))
                                 }
                                 _ => unimplemented!("Unsupported expression in MetaNameValue."),
                             }
@@ -147,7 +221,7 @@ impl Config {
                             macro_rules! set_config {
                                 ($ident:ident) => {
                                     if ident == stringify!($ident) {
-                                        res.style = res.style.$ident();
+                                        res.style_message = res.style_message.$ident();
                                     }
                                 };
                             }
@@ -198,7 +272,7 @@ impl ErrorVariant {
 }
 
 impl ErrorVariant {
-    fn fmt_self(&self) -> TokenStream2 {
+    fn fmt_desc(&self) -> TokenStream2 {
         let name = &self.variant.ident;
         let msg = &self.msg;
         match &self.variant.fields {
@@ -232,6 +306,203 @@ impl ErrorVariant {
                 quote! {
                     Self::#name => {
                         ::core::write!{f, #msg}?;
+                        ::core::result::Result::Ok(())
+                    }
+                }
+            }
+        }
+    }
+    fn get_desc(&self) -> TokenStream2 {
+        let name = &self.variant.ident;
+        let msg = &self.msg;
+        match &self.variant.fields {
+            Fields::Named(fields) => {
+                let fields = fields
+                    .named
+                    .iter()
+                    .map(|field| field.ident.as_ref().unwrap());
+                quote! {
+                    Self::#name { #(#fields, )* } => {
+                        ::std::format!{#msg}
+                    }
+                }
+            }
+            Fields::Unnamed(unnamed) => {
+                let elements = unnamed
+                    .unnamed
+                    .iter()
+                    .enumerate()
+                    .map(|(i, _)| format_ident!("_{i}"))
+                    .collect::<Vec<_>>();
+                quote! {
+                    Self::#name ( #(#elements, )* ) => {
+                        ::std::format!{#msg, #(#elements, )*}
+                    }
+                }
+            }
+            Fields::Unit => {
+                quote! {
+                    Self::#name => {
+                        ::std::format!{#msg}
+                    }
+                }
+            }
+        }
+    }
+    fn get_category(&self, cfg: Config) -> TokenStream2 {
+        let name = &self.variant.ident;
+        if cfg.nested {
+            quote! {
+                Self::#name (nested) => nested.get_category(),
+            }
+        } else {
+            let category = cfg.category;
+            quote! {
+                Self::#name {..} => #category,
+            }
+        }
+    }
+    fn get_number(&self, cfg: Config, number: String) -> TokenStream2 {
+        let name = &self.variant.ident;
+        if cfg.nested {
+            quote! {
+                Self::#name (nested) => {
+                    let number = nested.get_number();
+                    ::std::borrow::Cow::Owned(::std::format!("{}{}", #number, number))
+                }
+            }
+        } else {
+            quote! {
+                Self::#name {..} => ::std::borrow::Cow::Borrowed(#number),
+            }
+        }
+    }
+    fn get_code(&self, cfg: Config, number: String) -> TokenStream2 {
+        let name = &self.variant.ident;
+        if cfg.nested {
+            quote! {
+                Self::#name (nested) => {
+                    let number = nested.get_number();
+                    let category = nested.get_category();
+                    ::std::borrow::Cow::Owned(::std::format!("{}{}{}", category, #number, number))
+                }
+            }
+        } else {
+            let category = cfg.category;
+            let code = format!("{category}{number}");
+            quote! {
+                Self::#name {..} => ::std::borrow::Cow::Borrowed(#code),
+            }
+        }
+    }
+    fn get_prefix(&self, cfg: Config, number: String) -> TokenStream2 {
+        let name = &self.variant.ident;
+        // eprintln!("{:?}", cfg);
+        if cfg.nested {
+            let prefix = quote! {::std::format!("error[{}{}]", #number, nested.get_code())};
+            quote! {
+                Self::#name (nested) => ::std::borrow::Cow::Owned(#prefix),
+            }
+        } else {
+            let prefix = format!("error[{}]", &number);
+            quote! {
+                Self::#name {..} => ::std::borrow::Cow::Borrowed(#prefix),
+            }
+        }
+    }
+    #[cfg(feature = "colored")]
+    fn write_str(s: impl std::fmt::Display) -> TokenStream2 {
+        let s = s.to_string();
+        quote! {f.write_str(#s)?;}
+    }
+    fn fmt(&self, number: String, cfg: Config) -> TokenStream2 {
+        let name = &self.variant.ident;
+        let msg = &self.msg;
+        #[cfg(feature = "colored")]
+        let prefix = Self::write_str(cfg.prefix());
+        #[cfg(feature = "colored")]
+        let infix = Self::write_str(cfg.infix());
+        #[cfg(feature = "colored")]
+        let suffix = Self::write_str(cfg.suffix());
+        #[cfg(not(feature = "colored"))]
+        let prefix = quote! {};
+        #[cfg(not(feature = "colored"))]
+        let infix = quote! {};
+        #[cfg(not(feature = "colored"))]
+        let suffix = quote! {};
+        let get_code = if cfg.nested {
+            quote! {&self.get_code()}
+        } else {
+            let code = format!("{}{}", cfg.category, number);
+            quote! {#code}
+        };
+        match &self.variant.fields {
+            Fields::Named(fields) => {
+                assert!(!cfg.nested, "Named fields can't be nested error.");
+                let fields = fields
+                    .named
+                    .iter()
+                    .map(|field| field.ident.as_ref().unwrap());
+                quote! {
+                    Self::#name { #(#fields, )* } => {
+                        #prefix
+                        f.write_str(#get_code)?;
+                        f.write_str(": ")?;
+                        #infix
+                        ::core::write!{f, #msg}?;
+                        #suffix
+                        ::core::result::Result::Ok(())
+                    }
+                }
+            }
+            Fields::Unnamed(unnamed) => {
+                if cfg.nested {
+                    assert_eq!(
+                        unnamed.unnamed.len(),
+                        1,
+                        "Nested error can consists of one unnamed fields.",
+                    );
+                    quote! {
+                        Self::#name ( nested ) => {
+                            #prefix
+                            f.write_str(#get_code)?;
+                            f.write_str(": ")?;
+                            #infix
+                            ::core::write!{f, #msg, nested.get_desc()}?;
+                            #suffix
+                            ::core::result::Result::Ok(())
+                        }
+                    }
+                } else {
+                    let elements = unnamed
+                        .unnamed
+                        .iter()
+                        .enumerate()
+                        .map(|(i, _)| format_ident!("_{i}"))
+                        .collect::<Vec<_>>();
+                    quote! {
+                        Self::#name ( #(#elements, )* ) => {
+                            #prefix
+                            f.write_str(#get_code)?;
+                            f.write_str(": ")?;
+                            #infix
+                            ::core::write!{f, #msg, #(#elements, )*}?;
+                            #suffix
+                            ::core::result::Result::Ok(())
+                        }
+                    }
+                }
+            }
+            Fields::Unit => {
+                assert!(!cfg.nested, "Unit can't be nested error.");
+                quote! {
+                    Self::#name => {
+                        #prefix
+                        f.write_str(#get_code)?;
+                        f.write_str(": ")?;
+                        #infix
+                        ::core::write!{f, #msg}?;
+                        #suffix
                         ::core::result::Result::Ok(())
                     }
                 }
@@ -276,23 +547,23 @@ impl ErrorTree {
     fn get_variants<'s>(
         &'s self,
         config: Config,
-        prefix: String,
+        prenumber: &'_ str,
     ) -> impl Iterator<Item = (Config, String, &'s ErrorVariant)> {
         match self {
-            Self::Prefix(attrs, code, _desc, children) => children
+            Self::Prefix(attrs, postnumber, _desc, children) => children
                 .iter()
                 .flat_map(|node| {
                     let mut config = config.clone();
                     config.on_attrs(attrs);
-                    node.get_variants(config, format!("{prefix}{}", code.to_string()))
+                    node.get_variants(config, &format!("{prenumber}{postnumber}"))
                 })
                 .collect::<Vec<_>>()
                 .into_iter(),
-            Self::Variant(attrs, code, var) => {
-                let prefix = format!("{prefix}{code}");
+            Self::Variant(attrs, postnumber, var) => {
+                let code = format!("{prenumber}{postnumber}");
                 let mut config = config;
                 config.on_attrs(attrs);
-                vec![(config, prefix, var)].into_iter()
+                vec![(config, code, var)].into_iter()
             }
         }
     }
@@ -302,26 +573,28 @@ impl ErrorTree {
     /// - Message (for [Display](core::fmt::Display)).
     fn get_nodes<'s>(
         &'s self,
-        prefix: &str,
+        config: Config,
+        prenumber: &str,
         depth: usize,
-    ) -> impl Iterator<Item = (usize, String, Option<String>, String)> {
+    ) -> impl Iterator<Item = (Config, usize, String, Option<String>, String)> {
         match self {
-            Self::Prefix(_attrs, code, desc, children) => {
-                let prefix = format!("{}{}", prefix, code);
-                once((depth, prefix.clone(), None, desc.value()))
+            Self::Prefix(_attrs, postnumber, desc, children) => {
+                let number = format!("{}{}", prenumber, postnumber);
+                once((config.clone(), depth, number.clone(), None, desc.value()))
                     .chain(
                         children
                             .iter()
-                            .flat_map(|node| node.get_nodes(&prefix, depth + 1)),
+                            .flat_map(|node| node.get_nodes(config.clone(), &number, depth + 1)),
                     )
                     .collect::<Vec<_>>()
                     .into_iter()
             }
-            Self::Variant(_attrs, code, var) => {
-                let prefix = format!("{}{}", prefix, code);
+            Self::Variant(_attrs, postnumber, var) => {
+                let number = format!("{}{}", prenumber, postnumber);
                 vec![(
+                    config,
                     depth,
-                    prefix,
+                    number,
                     Some(var.variant.ident.to_string()),
                     var.msg.value(),
                 )]
@@ -344,26 +617,29 @@ impl ErrorEnum {
     /// - Code.
     /// - [ErrorVariant].
     fn get_variants<'s>(&'s self) -> impl Iterator<Item = (Config, String, &'s ErrorVariant)> {
-        self.variants.iter().flat_map(|(attrs, ident, _, tree)| {
-            tree.iter().flat_map(|node| {
-                let mut config = Config::from_attrs(&self.attrs);
-                config.on_attrs(attrs);
-                node.get_variants(config, ident.to_string())
-            })
+        self.variants.iter().flat_map(|(attrs, category, _, tree)| {
+            let mut config = Config::new(category.to_string());
+            config.on_attrs(attrs);
+            config.on_category(category);
+            tree.iter()
+                .flat_map(move |node| node.get_variants(config, ""))
         })
     }
+    /// - [Config].
     /// - Depth.
     /// - Prefix.
     /// - Variant name.
     /// - Message (for [Display](core::fmt::Display)).
-    fn get_nodes<'s>(&'s self) -> Vec<(usize, String, Option<String>, String)> {
+    fn get_nodes<'s>(&'s self) -> Vec<(Config, usize, String, Option<String>, String)> {
         self.variants
             .iter()
-            .flat_map(|(_, ident, msg, tree)| {
-                let prefix = ident.to_string();
-                once((0, prefix.clone(), None, msg.value())).chain(
+            .flat_map(|(attrs, category, msg, tree)| {
+                let mut config = Config::new(category.to_string());
+                config.on_category(category);
+                config.on_attrs(attrs);
+                once((config, 0, String::new(), None, msg.value())).chain(
                     tree.iter()
-                        .flat_map(|node| node.get_nodes(&prefix, 1))
+                        .flat_map(|node| node.get_nodes(config, "", 1))
                         .collect::<Vec<_>>()
                         .into_iter(),
                 )
@@ -412,20 +688,22 @@ impl ToTokens for ErrorEnum {
         let doc = self
             .get_nodes()
             .into_iter()
-            .map(|(depth, code, name, desc)| {
+            .map(|(_config, depth, code, name, desc)| {
                 let indent = "  ".repeat(depth);
-                if let Some(name) = name {
-                    format!("{indent}- `{code}`(**{name}**): {desc}")
-                } else {
-                    format!("{indent}- `{code}`: {desc}")
+                match name {
+                    Some(name) => format!("{indent}- `{code}`(**{name}**): {desc}"),
+                    None => format!("{indent}- `{code}`: {desc}"),
                 }
             });
         let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
 
+        let error_variants = self.get_variants().collect::<Vec<_>>();
+
         let variants = {
             let mut tokens = TokenStream2::new();
-            self.get_variants()
-                .for_each(|(_cfg, code, var)| var.to_tokens(&code, &mut tokens));
+            error_variants.iter().for_each(|(cfg, number, var)| {
+                var.to_tokens(&format!("{}{}", cfg.category, number), &mut tokens)
+            });
             tokens
         };
         tokens.extend(quote! {
@@ -439,53 +717,71 @@ impl ToTokens for ErrorEnum {
             }
         });
 
+        let fmt = self
+            .get_variants()
+            .map(|(cfg, code, variant)| variant.fmt(code, cfg));
         tokens.extend(quote! {
             impl #impl_generics ::core::fmt::Display for #name #ty_generics #where_clause {
                 fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-                    f.write_str(self.get_prefix())?;
-                    self.fmt_self(f)?;
-                    ::core::result::Result::Ok(())
+                    match self {
+                        #(#fmt)*
+                    }
                 }
             }
         });
 
-        let get_code = self.get_variants().map(|(_cfg, code, variant)| {
-            let name = &variant.variant.ident;
-            quote! {
-                Self::#name { .. } => #code,
-            }
-        });
-        let get_prefix = self.get_variants().map(|(cfg, code, variant)| {
-            let name = &variant.variant.ident;
-            let prefix = format!("error[{}]", &code);
-            // eprintln!("{:?}", cfg);
-            #[cfg(feature = "colored")]
-            let prefix = cfg.style.paint(prefix).to_string();
-            let prefix = format!("{prefix}: ");
-            quote! {
-                Self::#name {..} => #prefix,
-            }
-        });
-        let fmt_self = self
+        let get_category = self
             .get_variants()
-            .map(|(_cfg, _code, variant)| variant.fmt_self());
+            .map(|(cfg, _number, variant)| variant.get_category(cfg));
+        let get_number = self
+            .get_variants()
+            .map(|(cfg, number, variant)| variant.get_number(cfg, number));
+        let get_code = self
+            .get_variants()
+            .map(|(cfg, number, variant)| variant.get_code(cfg, number));
+        let get_prefix = self
+            .get_variants()
+            .map(|(cfg, number, variant)| variant.get_prefix(cfg, number));
+        let fmt_desc = self
+            .get_variants()
+            .map(|(_cfg, _number, variant)| variant.fmt_desc());
+        let get_desc = self
+            .get_variants()
+            .map(|(_cfg, _number, variant)| variant.get_desc());
         tokens.extend(quote! {
             impl #impl_generics #name #ty_generics #where_clause {
-                /// Get error code like `[E0000]`.
-                pub fn get_code(&self) -> &'static str {
+                /// Write error category like `E`.
+                pub fn get_category(&self) -> ::core::primitive::char {
+                    match self {
+                        #(#get_category)*
+                    }
+                }
+                /// Write error code number like `0000`.
+                pub fn get_number(&self) -> ::std::borrow::Cow<'static, str> {
+                    match self {
+                        #(#get_number)*
+                    }
+                }
+                /// Write error code like `E0000`.
+                pub fn get_code(&self) -> ::std::borrow::Cow<'static, str> {
                     match self {
                         #(#get_code)*
                     }
                 }
-                /// Get error message prefix like `error[E0000]:`.
-                pub fn get_prefix(&self) -> &'static str {
+                /// Write error message prefix like `error[E0000]: `.
+                pub fn get_prefix(&self) -> ::std::borrow::Cow<'static, str> {
                     match self {
                         #(#get_prefix)*
                     }
                 }
-                fn fmt_self(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+                fn fmt_desc(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
                     match self {
-                        #(#fmt_self)*
+                        #(#fmt_desc)*
+                    }
+                }
+                pub fn get_desc(&self) -> String {
+                    match self {
+                        #(#get_desc)*
                     }
                 }
             }
@@ -538,10 +834,9 @@ mod tests {
     use quote::{quote, ToTokens};
 
     #[test]
-    fn test() {
+    fn basic() {
         let output: ErrorEnum = syn::parse2(quote! {
             FileSystemError
-                #[color = (0xaf, 0, 0)]
                 E "错误" {
                     01 FileNotFound {path: std::path::Path}
                     "{path} not found.",
@@ -550,6 +845,133 @@ mod tests {
         .unwrap();
         let output = output.into_token_stream();
         eprintln!("{:#}", output);
-        // panic!();
+    }
+
+    #[test]
+    #[cfg(feature = "colored")]
+    fn colored() {
+        let output: ErrorEnum = syn::parse2(quote! {
+            FileSystemError
+                #[color = (0xaf, 0, 0)]
+                #[color = (0xa8, 0xa8, 0xa8)]
+                E "错误" {
+                    01 FileNotFound {path: std::path::Path}
+                    "{path} not found.",
+                }
+                #[fg = 214]
+                #[bg = 025]
+                W "警告" {
+                    01 FileTooLarge {path: std::path::Path}
+                    "{path} is too large.",
+                }
+                #[color = "blue"]
+                H "提示" {
+                    01 FileNameSuggestion (std::path::Path)
+                    "{0} may be what you want.",
+                }
+        })
+        .unwrap();
+        let output = output.into_token_stream();
+        eprintln!("{:#}", output);
+    }
+
+    #[test]
+    #[cfg(feature = "colored")]
+    fn colorful() {
+        let output: ErrorEnum = syn::parse2(quote! {
+            ColoredError
+                #[bold]
+                #[dimmer]
+                E "错误" {
+                    #[fg = "black"]
+                    0 BlackError (u8)
+                        "{0} is not black.",
+                    #[bg = "red"]
+                    1 RedError (u8, u8)
+                        "{0} and {1} is red.",
+                    #[fg = "green"]
+                    #[bg = "yellow"]
+                    2 GreenYellowError
+                        "Code is green, while description is yellow.",
+                    #[color = "blue"]
+                    3 BlueError
+                        "I'm blue.",
+                    #[foreground = "purple"]
+                    #[background = "cyan"]
+                    4 PurpleCyanError
+                        "Purpule and cyan.",
+                    #[color = "white"]
+                    5 WhiteError { white: String }
+                        "All in white.",
+                }
+        })
+        .unwrap();
+        let output = output.into_token_stream();
+        eprintln!("{:#}", output);
+    }
+
+    #[test]
+    fn deep() {
+        let output: ErrorEnum = syn::parse2(quote! {
+            FileSystemError
+                #[color = (0xaf, 0, 0)]
+                E "错误" {
+                    0 "文件错误" {
+                        0 AccessDenied
+                        "无权限。",
+                    }
+                }
+        })
+        .unwrap();
+        let output = output.into_token_stream();
+        eprintln!("{:#}", output);
+    }
+
+    #[test]
+    fn nested() {
+        let output: ErrorEnum = syn::parse2(quote! {
+            FileSystemError
+                #[color = (0xaf, 0, 0)]
+                E "错误" {
+                    #[nested]
+                    01 FileError (FileError)
+                    "{0}",
+                }
+        })
+        .unwrap();
+        let output = output.into_token_stream();
+        eprintln!("{:#}", output);
+    }
+
+    #[test]
+    #[should_panic]
+    fn rgb_2() {
+        let output: ErrorEnum = syn::parse2(quote! {
+            FileSystemError
+                #[color = (0, 0)]
+                E "错误" {
+                    01 FileError (FileError)
+                    "{0}",
+                }
+        })
+        .unwrap();
+        let output = output.into_token_stream();
+        eprintln!("{:#}", output);
+    }
+
+    #[test]
+    #[should_panic]
+    fn path() {
+        let output: ErrorEnum = syn::parse2(quote! {
+            FileSystemError
+                #[nest::ed]
+                E "错误" {
+                    01 FileError (FileError)
+                    "{0}",
+                }
+        })
+        .unwrap();
+        let output = output.into_token_stream();
+        eprintln!("{:#}", output);
     }
 }

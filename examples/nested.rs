@@ -3,6 +3,15 @@ use std::path::PathBuf;
 
 error_type! {
     pub FileSystemError
+        #[nested]
+        E "Errors." {
+            0 FileError (FileError)
+                "{0}",
+        }
+}
+
+error_type! {
+    pub FileError
         E "Errors." {
             0 "File-Related Errors." {
                 0 FileNotFound {path: PathBuf}
@@ -15,27 +24,18 @@ error_type! {
                     "Access Denied.",
             }
         }
-        W "Warnings." {
-            0 "File-Related Errors." {
-                0 FileTooLarge {path: PathBuf}
-                    "File {path:?} is too big. Consider read it with stream or in parts.",
-            }
-        }
 }
 
 fn main() {
     println!(
         "{}",
-        FileSystemError::FileNotFound {
+        FileSystemError::FileError(FileError::FileNotFound {
             path: "fs.rs".into()
-        },
+        }),
     );
-    println!("{}", FileSystemError::NotAFile("target".into()),);
-    println!("{}", FileSystemError::AccessDenied);
     println!(
         "{}",
-        FileSystemError::FileTooLarge {
-            path: "data.json".into()
-        }
+        FileSystemError::FileError(FileError::NotAFile("target".into()),)
     );
+    println!("{}", FileSystemError::FileError(FileError::AccessDenied));
 }
