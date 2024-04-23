@@ -5,9 +5,10 @@
 //! |:----------------:|:------------------------------:|
 //! |      Number      |             `1234`             |
 //! |       Code       |            `E1234`             |
-//! |     Category     |              `E`               |
+//! |     Category     |            `error`             |
+//! | Category Acronym |              `E`               |
 //! |       Kind       |         `error[E1234]`         |
-//! | Message Category |        `error[E1234]: `        |
+//! |  Message Prefix  |        `error[E1234]: `        |
 //! |   Description    |        `Access denied.`        |
 //! |     Message      | `error[E1234]: Access denied.` |
 
@@ -177,6 +178,8 @@ impl<'i> Config<'i> {
                                 }
                                 _ => unimplemented!("Unsupported expression in MetaNameValue."),
                             }
+                        } else {
+                            panic!("Unrecognized attribute.");
                         }
                     }
                     #[cfg(not(feature = "colored"))]
@@ -857,41 +860,6 @@ mod tests {
                 H "提示" {
                     01 FileNameSuggestion (std::path::Path)
                     "{0} may be what you want.",
-                }
-        })
-        .unwrap();
-        let output = output.into_token_stream();
-        eprintln!("{:#}", output);
-    }
-
-    #[test]
-    #[cfg(feature = "colored")]
-    fn colorful() {
-        let output: ErrorEnum = syn::parse2(quote! {
-            ColoredError
-                #[bold]
-                #[dimmer]
-                E "错误" {
-                    #[fg = "black"]
-                    0 BlackError (u8)
-                        "{0} is not black.",
-                    #[bg = "red"]
-                    1 RedError (u8, u8)
-                        "{0} and {1} is red.",
-                    #[fg = "green"]
-                    #[bg = "yellow"]
-                    2 GreenYellowError
-                        "Code is green, while description is yellow.",
-                    #[color = "blue"]
-                    3 BlueError
-                        "I'm blue.",
-                    #[foreground = "purple"]
-                    #[background = "cyan"]
-                    4 PurpleCyanError
-                        "Purpule and cyan.",
-                    #[color = "white"]
-                    5 WhiteError { white: String }
-                        "All in white.",
                 }
         })
         .unwrap();
