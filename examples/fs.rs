@@ -38,4 +38,8 @@ fn main() {
             path: "data.json".into()
         }
     );
+    let error = FileSystemError::FileTooLarge {
+        path: "data.json".into(),
+    };
+    assert_eq!(error.get_category(), "Warn");
 }
