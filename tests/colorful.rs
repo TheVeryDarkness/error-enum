@@ -2,7 +2,7 @@ use error_enum::error_type;
 
 error_type! {
     #[derive(Debug)]
-    pub ColoredError
+    pub ColoredError {
         /// 测试
         {
             #[diag(kind = "error")]
@@ -29,4 +29,5 @@ error_type! {
                 WhiteError { white: String },
             },
         },
+    }
 }

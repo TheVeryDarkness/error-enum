@@ -3,7 +3,7 @@ use std::path::PathBuf;
 
 error_type! {
     #[derive(Debug)]
-    pub FileSystemError
+    pub FileSystemError {
         #[diag(kind = "Error")]
         #[diag(msg = "Errors.")]
         {
@@ -36,6 +36,7 @@ error_type! {
                 FileTooLarge {path: PathBuf},
             },
         },
+    }
 }
 
 fn main() {

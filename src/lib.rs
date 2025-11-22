@@ -22,8 +22,11 @@ use quote::{format_ident, quote, ToTokens};
 use syn::{
     braced,
     parse::{self, Parse},
-    parse_macro_input, token, Attribute, DeriveInput, Error, Fields, Generics, Ident, LitInt,
-    LitStr, Result, Token, Variant, Visibility,
+    parse_macro_input,
+    punctuated::{self, Punctuated},
+    token::{self, Brace},
+    Attribute, DeriveInput, Error, Fields, Generics, Ident, LitInt, LitStr, Result, Token, Variant,
+    Visibility,
 };
 
 #[cfg(test)]
@@ -32,43 +35,36 @@ mod tests;
 /// Tree node of error definitions.
 enum ErrorTree {
     /// Prefix node.
-    Prefix(Span, Vec<Attribute>, Vec<ErrorTree>, Token![,]),
+    Prefix(Span, Vec<Attribute>, Punctuated<ErrorTree, Token![,]>),
     /// Leaf node.
     ///
     /// See [`syn::Variant`] and [`syn::DataStruct`].
-    Variant(Span, Vec<Attribute>, Ident, Fields, Token![,]),
+    Variant(Span, Vec<Attribute>, Ident, Fields),
 }
 
 impl ErrorTree {
     fn attrs(&self) -> &[Attribute] {
         match self {
-            ErrorTree::Prefix(_, attrs, _, _) => attrs,
-            ErrorTree::Variant(_, attrs, _, _, _) => attrs,
+            ErrorTree::Prefix(_, attrs, _) => attrs,
+            ErrorTree::Variant(_, attrs, _, _) => attrs,
         }
     }
     fn ident(&self) -> Option<&Ident> {
         match self {
-            ErrorTree::Prefix(_, _, _, _) => None,
-            ErrorTree::Variant(_, _, ident, _, _) => Some(ident),
+            ErrorTree::Prefix(_, _, _) => None,
+            ErrorTree::Variant(_, _, ident, _) => Some(ident),
         }
     }
     fn fields(&self) -> Option<&Fields> {
         match self {
-            ErrorTree::Prefix(_, _, _, _) => None,
-            ErrorTree::Variant(_, _, _, fields, _) => Some(fields),
+            ErrorTree::Prefix(_, _, _) => None,
+            ErrorTree::Variant(_, _, _, fields) => Some(fields),
         }
     }
     fn span(&self) -> Span {
         match self {
-            ErrorTree::Prefix(span, _, _, _) => *span,
-            ErrorTree::Variant(span, _, _, _, _) => *span,
-        }
-    }
-    #[expect(unused)]
-    fn comma(&self) -> &Token![,] {
-        match self {
-            ErrorTree::Prefix(_, _, _, comma) => comma,
-            ErrorTree::Variant(_, _, _, _, comma) => comma,
+            ErrorTree::Prefix(span, _, _) => *span,
+            ErrorTree::Variant(span, _, _, _) => *span,
         }
     }
 }
@@ -86,31 +82,37 @@ impl Parse for ErrorTree {
             } else {
                 Fields::Unit
             };
-            Ok(ErrorTree::Variant(
-                ident.span(),
-                attrs,
-                ident,
-                fields,
-                input.parse()?,
-            ))
+            Ok(ErrorTree::Variant(ident.span(), attrs, ident, fields))
         } else {
             let span = input.span();
             let children;
             braced!(children in input);
-            let mut nodes = Vec::new();
-            while !children.is_empty() {
-                let node = children.parse()?;
-                nodes.push(node);
-            }
-            Ok(ErrorTree::Prefix(span, attrs, nodes, input.parse()?))
+            let nodes = Punctuated::parse_terminated(&children)?;
+            Ok(ErrorTree::Prefix(span, attrs, nodes))
         }
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 enum Kind {
+    #[default]
     Error,
     Warn,
+}
+
+impl Kind {
+    fn as_str(&self) -> &'static str {
+        match self {
+            Kind::Error => "Error",
+            Kind::Warn => "Warn",
+        }
+    }
+    fn short_str(&self) -> &'static str {
+        match self {
+            Kind::Error => "E",
+            Kind::Warn => "W",
+        }
+    }
 }
 
 impl TryFrom<LitStr> for Kind {
@@ -131,7 +133,6 @@ impl TryFrom<LitStr> for Kind {
 /// Configuration for each variant.
 #[derive(Clone)]
 struct Config {
-    #[expect(unused)]
     kind: Option<Kind>,
     code: String,
     msg: Option<LitStr>,
@@ -166,7 +167,7 @@ impl Config {
         fields: Option<&Fields>,
         span: Span,
     ) -> Result<Self> {
-        let mut kind = None;
+        let mut kind = self.kind;
         let mut code = self.code.clone();
         let mut msg = None;
         let depth = self.depth + 1;
@@ -214,11 +215,11 @@ impl Config {
 }
 
 struct ErrorTreeIter<'i> {
-    stack: Vec<(&'i [ErrorTree], Config)>,
+    stack: Vec<(punctuated::Iter<'i, ErrorTree>, Config)>,
 }
 
 impl<'i> ErrorTreeIter<'i> {
-    fn new(tree: &'i [ErrorTree], attrs: &[Attribute], span: Span) -> Result<Self> {
+    fn new(tree: punctuated::Iter<'i, ErrorTree>, attrs: &[Attribute], span: Span) -> Result<Self> {
         Ok(Self {
             stack: vec![(tree, Config::new(span).process(attrs, None, None, span)?)],
         })
@@ -234,14 +235,13 @@ impl<'i> Iterator for ErrorTreeIter<'i> {
 
     fn next(&mut self) -> Option<Self::Item> {
         while let Some((slice, config)) = self.stack.last_mut() {
-            if let Some((node, rest)) = slice.split_first() {
-                *slice = rest;
+            if let Some(node) = slice.next() {
                 let config = Self::process_next(node, config, node.span())
                     .map(Some)
                     .transpose()?;
                 if let Ok(config) = &config {
-                    if let ErrorTree::Prefix(_, _, children, _) = node {
-                        self.stack.push((children.as_slice(), config.clone()));
+                    if let ErrorTree::Prefix(_, _, children) = node {
+                        self.stack.push((children.iter(), config.clone()));
                     }
                 }
                 return Some(config);
@@ -265,12 +265,13 @@ struct ErrorEnum {
     vis: Visibility,
     name: Ident,
     generics: Generics,
-    roots: Vec<ErrorTree>,
+    brace: Brace,
+    roots: Punctuated<ErrorTree, Token![,]>,
 }
 
 impl ErrorEnum {
     fn iter(&self) -> Result<ErrorTreeIter<'_>> {
-        ErrorTreeIter::new(self.roots.as_slice(), &self.attrs, self.name.span())
+        ErrorTreeIter::new(self.roots.iter(), &self.attrs, self.name.span())
     }
 }
 
@@ -280,15 +281,15 @@ impl Parse for ErrorEnum {
         let vis = input.parse()?;
         let name = input.parse()?;
         let generics = input.parse()?;
-        let mut roots = Vec::new();
-        while !input.is_empty() {
-            roots.push(ErrorTree::parse(input)?);
-        }
+        let children;
+        let brace = braced!(children in input);
+        let roots = Punctuated::parse_terminated(&children)?;
         Ok(Self {
             attrs,
             vis,
             generics,
             name,
+            brace,
             roots,
         })
     }
@@ -305,20 +306,27 @@ impl TryFrom<DeriveInput> for ErrorEnum {
             generics,
             data,
         } = value;
-        let mut roots = Vec::new();
         match data {
             syn::Data::Enum(data_enum) => {
-                for variant in data_enum.variants {
+                let mut roots = Punctuated::new();
+                for pair in data_enum.variants.into_pairs() {
+                    let (variant, comma) = pair.into_tuple();
                     let span = variant.ident.span();
-                    let node = ErrorTree::Variant(
-                        span,
-                        variant.attrs,
-                        variant.ident,
-                        variant.fields,
-                        Token![,](span),
-                    );
-                    roots.push(node);
+                    let node =
+                        ErrorTree::Variant(span, variant.attrs, variant.ident, variant.fields);
+                    roots.push_value(node);
+                    if let Some(comma) = comma {
+                        roots.push_punct(comma);
+                    }
                 }
+                Ok(Self {
+                    attrs,
+                    vis,
+                    name: ident,
+                    generics,
+                    brace: data_enum.brace_token,
+                    roots,
+                })
             }
             _ => {
                 return Err(Error::new_spanned(
@@ -327,13 +335,6 @@ impl TryFrom<DeriveInput> for ErrorEnum {
                 ))
             }
         }
-        Ok(Self {
-            attrs,
-            vis,
-            name: ident,
-            generics,
-            roots,
-        })
     }
 }
 
@@ -346,15 +347,19 @@ impl ErrorEnum {
                     depth,
                     ident,
                     msg,
+                    kind,
                     ..
                 } = config?;
                 let indent = "  ".repeat(depth - 2);
                 let msg = msg.as_ref().map(|s| s.value());
+                let kind = kind.unwrap_or_default().short_str();
                 Ok(match (ident, msg) {
-                    (Some(ident), Some(msg)) => format!("{indent}- `{code}`(**{ident}**): {msg}"),
-                    (None, Some(msg)) => format!("{indent}- `{code}`: {msg}"),
-                    (Some(ident), None) => format!("{indent}- `{code}`(**{ident}**)"),
-                    (None, None) => format!("{indent}- `{code}`"),
+                    (Some(ident), Some(msg)) => {
+                        format!("{indent}- `{kind}{code}`(**{ident}**): {msg}")
+                    }
+                    (None, Some(msg)) => format!("{indent}- `{kind}{code}`: {msg}"),
+                    (Some(ident), None) => format!("{indent}- `{kind}{code}`(**{ident}**)"),
+                    (None, None) => format!("{indent}- `{kind}{code}`"),
                 })
             })
             .collect()
@@ -365,16 +370,39 @@ impl ErrorEnum {
                 config
                     .map(
                         |Config {
+                             kind,
+                             msg,
+                             code,
                              attrs,
                              ident,
                              fields,
                              ..
-                         }| { Some((attrs, ident?, fields?)) },
+                         }| {
+                            Some((kind, msg, code, attrs, ident?, fields?))
+                        },
                     )
                     .transpose()
             })
             .map(|config| {
-                let (attrs, ident, fields) = config?;
+                let (kind, msg, code, mut attrs, ident, fields) = config?;
+
+                let kind = kind.unwrap_or_default();
+                let prefix = format!("{}{}", kind.short_str(), code);
+
+                let doc = match msg {
+                    Some(msg) => {
+                        format!("`{prefix}`: {msg}", msg = msg.value())
+                    }
+                    None => format!("`{prefix}`"),
+                };
+
+                attrs.push(syn::parse_quote! {
+                    #[doc = #doc]
+                });
+                attrs.push(syn::parse_quote! {
+                    #[doc(alias = #prefix)]
+                });
+
                 Ok(Variant {
                     attrs,
                     ident,
@@ -402,9 +430,7 @@ impl ErrorEnum {
                         let members = named.named.iter().map(|f| f.ident.as_ref());
                         Ok(quote! {
                             #[allow(unused_variables)]
-                            Self::#ident { #(#members,)* } => {
-                                write!(f, #msg)
-                            },
+                            Self::#ident { #(#members),* } => write!(f, #msg),
                         })
                     }
                     Fields::Unnamed(unnamed) => {
@@ -436,15 +462,11 @@ impl ErrorEnum {
                             .transpose()?
                             .unwrap_or_default();
                         Ok(quote! {
-                            Self::#ident ( #(#params, )* ) => {
-                                write!(f, #msg #(, #args)* )
-                            },
+                            Self::#ident ( #(#params),* ) => write!(f, #msg #(, #args)* ),
                         })
                     }
                     Fields::Unit => Ok(quote! {
-                        Self::#ident => {
-                            write!(f, #msg)
-                        },
+                        Self::#ident => write!(f, #msg),
                     }),
                 }
             })
@@ -468,9 +490,10 @@ impl ErrorEnum {
                 #[doc = #doc]
             )*
             #(#attrs)*
-            #vis enum #name #generics {
-                #(#variants, )*
-            }
+            #vis enum #name #generics
+        });
+        self.brace.surround(tokens, |tokens| {
+            tokens.extend(quote! { #(#variants, )* });
         });
 
         let display = self.display()?;
@@ -549,10 +572,13 @@ impl ErrorEnum {
 
 impl ToTokens for ErrorEnum {
     fn to_tokens(&self, tokens: &mut TokenStream2) {
-        self.try_to_tokens(tokens).unwrap_or_else(|err| {
-            let diag = err.to_compile_error();
-            tokens.extend(diag);
-        });
+        let mut buffer = TokenStream2::new();
+        self.try_to_tokens(&mut buffer)
+            .inspect(|()| tokens.extend(buffer))
+            .unwrap_or_else(|err| {
+                let diag = err.to_compile_error();
+                tokens.extend(diag);
+            });
     }
 }
 
