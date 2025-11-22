@@ -63,7 +63,7 @@ fn deep() {
         },
         quote! {
             #[doc = "List of error variants:"]
-            #[doc = "- ``: "]
+            #[doc = "- ``"]
             #[doc = "  - `0`: 文件错误"]
             #[doc = "    - `00`(**AccessDenied**): 无权限。"]
             enum FileSystemError { AccessDenied, }
@@ -81,6 +81,7 @@ fn deep() {
         },
     );
 }
+
 #[test]
 fn nested() {
     test_error_type(
@@ -108,6 +109,40 @@ fn nested() {
                     match self {
                         Self::FileError(_0, ) => {
                             write!(f, "{0}", _0)
+                        },
+                    }
+                }
+            }
+            impl ::core::error::Error for FileSystemError {}
+        },
+    );
+}
+
+#[test]
+fn escaped_braces_in_msg() {
+    test_error_type(
+        quote! {
+            FileSystemError
+                #[diag(kind = "Error")]
+                #[diag(msg = "错误")]
+                {
+                    #[diag(code = 01)]
+                    #[diag(msg = "{{0}} not found.")]
+                    FileNotFound (std::path::Path),
+                },
+        },
+        quote! {
+            #[doc = "List of error variants:"]
+            #[doc = "- ``: 错误"]
+            #[doc = "  - `01`(**FileNotFound**): {{0}} not found."]
+            enum FileSystemError {
+                FileNotFound(std::path::Path),
+            }
+            impl ::core::fmt::Display for FileSystemError {
+                fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+                    match self {
+                        Self::FileNotFound(_0, ) => {
+                            write!(f, "{{0}} not found.")
                         },
                     }
                 }

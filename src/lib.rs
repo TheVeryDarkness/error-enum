@@ -408,7 +408,8 @@ impl ErrorEnum {
                         })
                     }
                     Fields::Unnamed(unnamed) => {
-                        static ARG: Lazy<Regex> = lazy_regex!(r#"\{(\d+)(:[^\{\}]*)?\}"#);
+                        static ARG: Lazy<Regex> =
+                            lazy_regex!(r#"(^|[^\{])(\{\{)*\{(?<index>\d+)(:[^\{\}]*)?\}"#);
                         let params = (0..unnamed.unnamed.len()).map(|i| format_ident!("_{}", i));
                         let args = msg
                             .as_ref()
@@ -416,7 +417,7 @@ impl ErrorEnum {
                                 ARG.captures_iter(msg.value().as_str())
                                     .map(|cap| {
                                         let index = cap
-                                            .get(1)
+                                            .name("index")
                                             .ok_or_else(|| {
                                                 Error::new_spanned(msg, "Invalid argument index.")
                                             })?
