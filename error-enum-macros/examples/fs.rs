@@ -1,4 +1,4 @@
-use error_enum::error_type;
+use error_enum_macros::error_type;
 use std::path::PathBuf;
 
 error_type! {
