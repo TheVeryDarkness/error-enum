@@ -12,8 +12,7 @@
     rustdoc::broken_intra_doc_links,
     rustdoc::invalid_html_tags,
     rustdoc::invalid_rust_codeblocks,
-    rustdoc::unescaped_backticks,
-    rustdoc::unportable_markdown
+    rustdoc::unescaped_backticks
 )]
 
 use lazy_regex::{lazy_regex, Lazy, Regex};
@@ -63,6 +62,13 @@ impl ErrorTree {
         match self {
             ErrorTree::Prefix(span, _, _, _) => *span,
             ErrorTree::Variant(span, _, _, _, _) => *span,
+        }
+    }
+    #[expect(unused)]
+    fn comma(&self) -> &Token![,] {
+        match self {
+            ErrorTree::Prefix(_, _, _, comma) => comma,
+            ErrorTree::Variant(_, _, _, _, comma) => comma,
         }
     }
 }
@@ -125,14 +131,17 @@ impl TryFrom<LitStr> for Kind {
 /// Configuration for each variant.
 #[derive(Clone)]
 struct Config {
+    #[expect(unused)]
     kind: Option<Kind>,
     code: String,
-    msg: Option<String>,
+    msg: Option<LitStr>,
     attrs: Vec<Attribute>,
     ident: Option<Ident>,
     fields: Option<Fields>,
     depth: usize,
+    #[expect(unused)]
     nested: bool,
+    #[expect(unused)]
     span: Span,
 }
 
@@ -175,7 +184,7 @@ impl Config {
                         code.push_str(value.to_string().as_str());
                     } else if meta.path.is_ident("msg") {
                         let value: LitStr = meta.value()?.parse()?;
-                        msg = Some(value.value());
+                        msg = Some(value);
                     } else if meta.path.is_ident("nested") {
                         nested = true;
                     } else {
@@ -340,10 +349,12 @@ impl ErrorEnum {
                     ..
                 } = config?;
                 let indent = "  ".repeat(depth - 2);
-                let msg = msg.unwrap_or_default();
-                Ok(match ident {
-                    Some(ident) => format!("{indent}- `{code}`(**{ident}**): {msg}"),
-                    None => format!("{indent}- `{code}`: {msg}"),
+                let msg = msg.as_ref().map(|s| s.value());
+                Ok(match (ident, msg) {
+                    (Some(ident), Some(msg)) => format!("{indent}- `{code}`(**{ident}**): {msg}"),
+                    (None, Some(msg)) => format!("{indent}- `{code}`: {msg}"),
+                    (Some(ident), None) => format!("{indent}- `{code}`(**{ident}**)"),
+                    (None, None) => format!("{indent}- `{code}`"),
                 })
             })
             .collect()
@@ -401,15 +412,27 @@ impl ErrorEnum {
                         let params = (0..unnamed.unnamed.len()).map(|i| format_ident!("_{}", i));
                         let args = msg
                             .as_ref()
-                            .map(|msg| {
-                                ARG.captures_iter(msg)
+                            .map(|msg| -> Result<Vec<Ident>> {
+                                ARG.captures_iter(msg.value().as_str())
                                     .map(|cap| {
-                                        let index =
-                                            cap.get(1).unwrap().as_str().parse::<usize>().unwrap();
-                                        format_ident!("_{}", index)
+                                        let index = cap
+                                            .get(1)
+                                            .ok_or_else(|| {
+                                                Error::new_spanned(msg, "Invalid argument index.")
+                                            })?
+                                            .as_str()
+                                            .parse::<usize>()
+                                            .map_err(|err| {
+                                                Error::new_spanned(
+                                                    msg,
+                                                    format!("Invalid argument index: {err}"),
+                                                )
+                                            })?;
+                                        Ok(format_ident!("_{}", index))
                                     })
-                                    .collect::<Vec<_>>()
+                                    .collect()
                             })
+                            .transpose()?
                             .unwrap_or_default();
                         Ok(quote! {
                             Self::#ident ( #(#params, )* ) => {

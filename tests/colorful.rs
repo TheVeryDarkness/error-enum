@@ -30,20 +30,3 @@ error_type! {
             },
         },
 }
-
-#[test]
-#[cfg(feature = "colored")]
-fn main() {
-    println!("{}", ColoredError::BlackError(1));
-    println!("{}", ColoredError::RedError(3, 4));
-    println!("{}", ColoredError::GreenYellowError);
-    println!("{}", ColoredError::BlackError(9));
-    println!("{}", ColoredError::BlueError);
-    println!("{}", ColoredError::PurpleCyanError);
-    println!(
-        "{}",
-        ColoredError::WhiteError {
-            white: "white".to_owned()
-        }
-    );
-}

@@ -39,21 +39,23 @@ error_type! {
 }
 
 fn main() {
-    println!(
-        "{}",
+    assert_eq!(
         FileSystemError::FileNotFound {
             path: "fs.rs".into()
-        },
-    );
-    println!("{}", FileSystemError::NotAFile("target".into()),);
-    println!("{}", FileSystemError::AccessDenied);
-    println!(
-        "{}",
-        FileSystemError::FileTooLarge {
-            path: "data.json".into()
         }
+        .to_string(),
+        "File \"fs.rs\" Not Found",
     );
-    let error = FileSystemError::FileTooLarge {
-        path: "data.json".into(),
-    };
+    assert_eq!(
+        FileSystemError::NotAFile("target".into()).to_string(),
+        "Path \"target\" does not point to a file."
+    );
+    assert_eq!(FileSystemError::AccessDenied.to_string(), "Access Denied.");
+    assert_eq!(
+        FileSystemError::FileTooLarge {
+            path: "data.json".into(),
+        }
+        .to_string(),
+        "File \"data.json\" is too big. Consider read it with stream or in parts."
+    );
 }
