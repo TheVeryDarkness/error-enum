@@ -1,36 +1,34 @@
 use error_enum::error_type;
 
 error_type! {
+    #[derive(Debug)]
     pub ColoredError
-        Test "测试" {
-            #[fg = "black"]
-            #[bold]
-            0 BlackError (u8)
-                "{0} is not black.",
-            #[bg = "red"]
-            #[dimmed]
-            1 RedError (u8, u8)
-                "{0} and {1} is not red.",
-            #[fg = "green"]
-            #[bg = "yellow"]
-            #[underline]
-            #[italic]
-            2 GreenYellowError
-                "Code is green and yellow.",
-            #[color = "blue"]
-            #[blink]
-            3 BlueError
-                "I'm blue.",
-            #[foreground = "purple"]
-            #[background = "cyan"]
-            #[reverse]
-            4 PurpleCyanError
-                "Purpule and cyan.",
-            #[color = "white"]
-            #[strikethrough]
-            5 WhiteError { white: String }
-                "All in {white}.",
-        }
+        /// 测试
+        {
+            #[diag(kind = "error")]
+            #[diag(code = 0)]
+            #[diag(msg = "SimpleError")]
+            {
+                #[diag(code = 0)]
+                #[diag(msg = "{0} is not black.")]
+                BlackError (u8),
+                #[diag(code = 1)]
+                #[diag(msg = "{0} and {1} is not red.")]
+                RedError (u8, u8),
+                #[diag(code = 2)]
+                #[diag(msg = "Code is green and yellow.")]
+                GreenYellowError,
+                #[diag(code = 3)]
+                #[diag(msg = "I'm blue.")]
+                BlueError,
+                #[diag(code = 4)]
+                #[diag(msg = "Purpule and cyan.")]
+                PurpleCyanError,
+                #[diag(code = 5)]
+                #[diag(msg = "All in {white}.")]
+                WhiteError { white: String },
+            },
+        },
 }
 
 #[test]

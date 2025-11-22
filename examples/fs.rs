@@ -2,25 +2,40 @@ use error_enum::error_type;
 use std::path::PathBuf;
 
 error_type! {
+    #[derive(Debug)]
     pub FileSystemError
-        Error "Errors." {
-            0 "File-Related Errors." {
-                0 FileNotFound {path: PathBuf}
-                    "File {path:?} not found.",
-                1 NotAFile (PathBuf)
-                    "Path {0:?} does not point to a file.",
-            }
-            1 "Access Denied." {
-                0 AccessDenied
-                    "Access Denied.",
-            }
-        }
-        Warn "Warnings." {
-            0 "File-Related Errors." {
-                0 FileTooLarge {path: PathBuf}
-                    "File {path:?} is too big. Consider read it with stream or in parts.",
-            }
-        }
+        #[diag(kind = "Error")]
+        #[diag(msg = "Errors.")]
+        {
+            #[diag(code = 0)]
+            #[diag(msg = "File Kind-Related Errors.")]
+            {
+                #[diag(code = 0)]
+                #[diag(msg = "File {path:?} Not Found")]
+                FileNotFound {path: PathBuf},
+                #[diag(code = 1)]
+                #[diag(msg = "Path {0:?} does not point to a file.")]
+                NotAFile (PathBuf),
+            },
+            #[diag(code = 1)]
+            #[diag(msg = "Access-Related Errors.")]
+            {
+                #[diag(code = 1)]
+                #[diag(msg = "Access Denied.")]
+                AccessDenied,
+            },
+        },
+        #[diag(kind = "Warn")]
+        #[diag(msg = "Warnings.")]
+        {
+            #[diag(code = 0)]
+            #[diag(msg = "File Content-Related Warnings.")]
+            {
+                #[diag(code = 0)]
+                #[diag(msg = "File {path:?} is too big. Consider read it with stream or in parts.")]
+                FileTooLarge {path: PathBuf},
+            },
+        },
 }
 
 fn main() {
@@ -41,5 +56,4 @@ fn main() {
     let error = FileSystemError::FileTooLarge {
         path: "data.json".into(),
     };
-    assert_eq!(error.get_category(), "Warn");
 }

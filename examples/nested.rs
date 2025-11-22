@@ -2,28 +2,42 @@ use error_enum::error_type;
 use std::path::PathBuf;
 
 error_type! {
+    #[derive(Debug)]
     pub FileSystemError
-        #[nested]
-        Error "Errors." {
-            0 FileError (FileError)
-                "{0}",
-        }
+        #[diag(kind = "Error")]
+        #[diag(msg = "Errors.")]
+        #[diag(nested)]
+        {
+            #[diag(code = 0)]
+            #[diag(msg = "{0}")]
+            FileError (FileError),
+        },
 }
 
 error_type! {
+    #[derive(Debug)]
     pub FileError
-        Error "Errors." {
-            0 "File-Related Errors." {
-                0 FileNotFound {path: PathBuf}
-                    "File {path:?} not found.",
-                1 NotAFile (PathBuf)
-                    "Path {0:?} does not point to a file.",
-            }
-            1 "Access Denied." {
-                0 AccessDenied
-                    "Access Denied.",
-            }
-        }
+        #[diag(kind = "Error")]
+        #[diag(msg = "Errors.")]
+        {
+            #[diag(code = 0)]
+            #[diag(msg = "File-Related Errors.")]
+            {
+                #[diag(code = 0)]
+                #[diag(msg = "File {path:?} not found.")]
+                FileNotFound {path: PathBuf},
+                #[diag(code = 1)]
+                #[diag(msg = "Path {0:?} does not point to a file.")]
+                NotAFile (PathBuf),
+            },
+            #[diag(code = 1)]
+            #[diag(msg = "Access Denied.")]
+            {
+                #[diag(code = 0)]
+                #[diag(msg = "Access Denied.")]
+                AccessDenied,
+            },
+        },
 }
 
 fn main() {

@@ -1,505 +1,94 @@
 #![doc = include_str!("../README.md")]
-#![warn(rust_2021_compatibility, rustdoc::all, missing_docs)]
+#![warn(missing_docs)]
+#![warn(
+    clippy::unwrap_in_result,
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic
+)]
+#![warn(
+    rustdoc::invalid_codeblock_attributes,
+    rustdoc::bare_urls,
+    rustdoc::broken_intra_doc_links,
+    rustdoc::invalid_html_tags,
+    rustdoc::invalid_rust_codeblocks,
+    rustdoc::unescaped_backticks,
+    rustdoc::unportable_markdown
+)]
 
-#[cfg(feature = "colored")]
-use ansi_term::{Color, Style};
+use lazy_regex::{lazy_regex, Lazy, Regex};
 use proc_macro::TokenStream;
-use proc_macro2::TokenStream as TokenStream2;
+use proc_macro2::{Span, TokenStream as TokenStream2};
 use quote::{format_ident, quote, ToTokens};
-use std::iter::once;
 use syn::{
     braced,
     parse::{self, Parse},
-    parse_macro_input, Attribute, Fields, Generics, Ident, LitInt, LitStr, Meta, Token, Variant,
-    Visibility,
+    parse_macro_input, token, Attribute, DeriveInput, Error, Fields, Generics, Ident, LitInt,
+    LitStr, Result, Token, Variant, Visibility,
 };
 
 #[cfg(test)]
 mod tests;
 
-/// Configuration for each variant.
-#[derive(Clone, Copy, Debug)]
-struct Config<'i> {
-    category: &'i str,
-    nested: bool,
-    #[cfg(feature = "colored")]
-    style_prefix: Style,
-    #[cfg(feature = "colored")]
-    style_message: Style,
-}
-impl<'i> Config<'i> {
-    pub fn new(category: &'i str) -> Self {
-        let nested = false;
-        #[cfg(feature = "colored")]
-        {
-            let style_prefix = Style::default();
-            let style_message = Style::default();
-            // Just give it a default color.
-            #[cfg(feature = "colored")]
-            let style_prefix = style_prefix.fg(Color::Red);
-            Self {
-                category,
-                nested,
-                style_prefix,
-                style_message,
-            }
-        }
-        #[cfg(not(feature = "colored"))]
-        {
-            Self { category, nested }
-        }
-    }
-    #[cfg(feature = "colored")]
-    pub fn prefix(&self) -> ansi_term::Prefix {
-        self.style_prefix.prefix()
-    }
-    #[cfg(feature = "colored")]
-    pub fn infix(&self) -> ansi_term::Infix {
-        self.style_prefix.infix(self.style_message)
-    }
-    #[cfg(feature = "colored")]
-    pub fn suffix(&self) -> ansi_term::Suffix {
-        self.style_message.suffix()
-    }
-    pub fn on_category(&mut self, _category: &Ident) {}
-    pub fn on_attrs(&mut self, attrs: &Vec<Attribute>) {
-        for attr in attrs {
-            self.on_attr(attr)
-        }
-    }
-    #[cfg(feature = "colored")]
-    fn lit_str_to_color(str: &LitStr) -> Color {
-        let str = str.value();
-        match str.as_str() {
-            "black" => Color::Black,
-            "red" => Color::Red,
-            "green" => Color::Green,
-            "yellow" => Color::Yellow,
-            "blue" => Color::Blue,
-            "purple" => Color::Purple,
-            "cyan" => Color::Cyan,
-            "white" => Color::White,
-            _ => panic!("Unexpected color `{}`.", str),
-        }
-    }
-    #[cfg(feature = "colored")]
-    fn rgb_tuple_to_color(tuple: &syn::ExprTuple) -> Color {
-        assert!(
-            tuple.elems.len() == 3,
-            "RGB color should have 3 componenets."
-        );
-        let mut iter = tuple.elems.iter();
-        let mut get_component = || -> u8 {
-            let component = iter.next().unwrap();
-            if let syn::Expr::Lit(syn::ExprLit {
-                lit: syn::Lit::Int(int),
-                attrs: _attrs,
-            }) = component
-            {
-                int.base10_parse().expect("Invalid RGB code")
-            } else {
-                panic!("Unsupported expression in RGB code.");
-            }
-        };
-        Color::RGB(get_component(), get_component(), get_component())
-    }
-    fn on_attr(&mut self, attr: &Attribute) {
-        let res = self;
-        match &attr.meta {
-            Meta::List(_list) => {
-                unimplemented!("Attribute list.");
-            }
-            Meta::NameValue(name_value) => {
-                if let Some(_ident) = name_value.path.get_ident() {
-                    #[cfg(feature = "colored")]
-                    {
-                        let ident = _ident;
-                        if ident == "color" || ident == "foreground" || ident == "fg" {
-                            match &name_value.value {
-                                syn::Expr::Lit(literal) => {
-                                    if !literal.attrs.is_empty() {
-                                        eprintln!("Attributes in literal is ignored.");
-                                    }
-                                    match &literal.lit {
-                                        syn::Lit::Int(int) => {
-                                            res.style_prefix = res.style_prefix.fg(Color::Fixed(
-                                                int.base10_parse().expect("Invalid color."),
-                                            ));
-                                        }
-                                        syn::Lit::Str(str) => {
-                                            res.style_prefix =
-                                                res.style_prefix.fg(Self::lit_str_to_color(str))
-                                        }
-                                        _ => {
-                                            unimplemented!("Unsupported literal in MetaNameValue.")
-                                        }
-                                    }
-                                }
-                                syn::Expr::Tuple(tuple) => {
-                                    res.style_prefix =
-                                        res.style_prefix.fg(Self::rgb_tuple_to_color(tuple))
-                                }
-                                _ => unimplemented!("Unsupported expression in MetaNameValue."),
-                            }
-                        } else if ident == "background" || ident == "bg" {
-                            match &name_value.value {
-                                syn::Expr::Lit(literal) => {
-                                    if !literal.attrs.is_empty() {
-                                        eprintln!("Attributes in literal is ignored.");
-                                    }
-                                    match &literal.lit {
-                                        syn::Lit::Int(int) => {
-                                            res.style_prefix = res.style_prefix.on(Color::Fixed(
-                                                int.base10_parse().expect("Invalid color."),
-                                            ));
-                                        }
-                                        syn::Lit::Str(str) => {
-                                            res.style_prefix =
-                                                res.style_prefix.on(Self::lit_str_to_color(str));
-                                        }
-                                        _ => {
-                                            unimplemented!("Unsupported literal in MetaNameValue.")
-                                        }
-                                    }
-                                }
-                                syn::Expr::Tuple(tuple) => {
-                                    res.style_prefix =
-                                        res.style_prefix.on(Self::rgb_tuple_to_color(tuple))
-                                }
-                                _ => unimplemented!("Unsupported expression in MetaNameValue."),
-                            }
-                        } else {
-                            panic!("Unrecognized attribute.");
-                        }
-                    }
-                    #[cfg(not(feature = "colored"))]
-                    unimplemented!("Path in MetaNameValue.");
-                } else {
-                    unimplemented!("Path in MetaNameValue.");
-                }
-            }
-            Meta::Path(path) => {
-                if let Some(ident) = path.get_ident() {
-                    if ident == "nested" {
-                        res.nested = true;
-                    } else {
-                        #[cfg(feature = "colored")]
-                        {
-                            macro_rules! set_config {
-                                ($ident:ident) => {
-                                    if ident == stringify!($ident) {
-                                        res.style_message = res.style_message.$ident();
-                                    }
-                                };
-                            }
-                            set_config!(bold);
-                            set_config!(dimmed);
-                            set_config!(italic);
-                            set_config!(underline);
-                            set_config!(blink);
-                            set_config!(reverse);
-                            set_config!(hidden);
-                            set_config!(strikethrough);
-                        }
-                        #[cfg(not(feature = "colored"))]
-                        unimplemented!("Path in MetaNameValue.");
-                    }
-                } else {
-                    unimplemented!("Path in attribute.");
-                }
-            }
-        }
-    }
-}
-
-struct ErrorVariant {
-    variant: Variant,
-    msg: LitStr,
-}
-
-impl Parse for ErrorVariant {
-    fn parse(input: parse::ParseStream) -> syn::Result<Self> {
-        let variant = input.parse()?;
-        let msg = input.parse()?;
-        Ok(Self { variant, msg })
-    }
-}
-
-impl ErrorVariant {
-    fn to_tokens(&self, code: &str, tokens: &mut TokenStream2) {
-        let variant = &self.variant;
-        let msg = &self.msg;
-        let code = format!("{}: ", code);
-        tokens.extend(quote! {
-            #[doc = #code]
-            #[doc = #msg]
-            #variant,
-        })
-    }
-}
-
-impl ErrorVariant {
-    fn fmt_desc(&self) -> TokenStream2 {
-        let name = &self.variant.ident;
-        let msg = &self.msg;
-        match &self.variant.fields {
-            Fields::Named(fields) => {
-                let fields = fields
-                    .named
-                    .iter()
-                    .map(|field| field.ident.as_ref().unwrap());
-                quote! {
-                    Self::#name { #(#fields, )* } => {
-                        ::core::write!{f, #msg}?;
-                        ::core::result::Result::Ok(())
-                    }
-                }
-            }
-            Fields::Unnamed(unnamed) => {
-                let elements = unnamed
-                    .unnamed
-                    .iter()
-                    .enumerate()
-                    .map(|(i, _)| format_ident!("_{i}"))
-                    .collect::<Vec<_>>();
-                quote! {
-                    Self::#name ( #(#elements, )* ) => {
-                        ::core::write!{f, #msg, #(#elements, )*}?;
-                        ::core::result::Result::Ok(())
-                    }
-                }
-            }
-            Fields::Unit => {
-                quote! {
-                    Self::#name => {
-                        ::core::write!{f, #msg}?;
-                        ::core::result::Result::Ok(())
-                    }
-                }
-            }
-        }
-    }
-    fn get_desc(&self) -> TokenStream2 {
-        let name = &self.variant.ident;
-        let msg = &self.msg;
-        match &self.variant.fields {
-            Fields::Named(fields) => {
-                let fields = fields
-                    .named
-                    .iter()
-                    .map(|field| field.ident.as_ref().unwrap());
-                quote! {
-                    Self::#name { #(#fields, )* } => {
-                        ::std::format!{#msg}
-                    }
-                }
-            }
-            Fields::Unnamed(unnamed) => {
-                let elements = unnamed
-                    .unnamed
-                    .iter()
-                    .enumerate()
-                    .map(|(i, _)| format_ident!("_{i}"))
-                    .collect::<Vec<_>>();
-                quote! {
-                    Self::#name ( #(#elements, )* ) => {
-                        ::std::format!{#msg, #(#elements, )*}
-                    }
-                }
-            }
-            Fields::Unit => {
-                quote! {
-                    Self::#name => {
-                        ::std::format!{#msg}
-                    }
-                }
-            }
-        }
-    }
-    fn get_category(&self, cfg: Config) -> TokenStream2 {
-        let name = &self.variant.ident;
-        if cfg.nested {
-            quote! {
-                Self::#name (nested) => nested.get_category(),
-            }
-        } else {
-            let category = cfg.category;
-            quote! {
-                Self::#name {..} => #category,
-            }
-        }
-    }
-    fn get_number(&self, cfg: Config, number: String) -> TokenStream2 {
-        let name = &self.variant.ident;
-        if cfg.nested {
-            quote! {
-                Self::#name (nested) => {
-                    let number = nested.get_number();
-                    ::std::borrow::Cow::Owned(::std::format!("{}{}", #number, number))
-                }
-            }
-        } else {
-            quote! {
-                Self::#name {..} => ::std::borrow::Cow::Borrowed(#number),
-            }
-        }
-    }
-    fn get_code(&self, cfg: Config, number: String) -> TokenStream2 {
-        let name = &self.variant.ident;
-        if cfg.nested {
-            quote! {
-                Self::#name (nested) => {
-                    let number = nested.get_number();
-                    let category = nested.get_category().chars().next().unwrap().to_uppercase();
-                    ::std::borrow::Cow::Owned(::std::format!("{}{}{}", category, #number, number))
-                }
-            }
-        } else {
-            let category = cfg.category.chars().next().unwrap().to_uppercase();
-            let code = format!("{category}{number}");
-            quote! {
-                Self::#name {..} => ::std::borrow::Cow::Borrowed(#code),
-            }
-        }
-    }
-    fn get_prefix(&self, cfg: Config, number: String) -> TokenStream2 {
-        let name = &self.variant.ident;
-        // eprintln!("{:?}", cfg);
-        if cfg.nested {
-            quote! {
-                Self::#name (nested) => {
-                    let category = nested.get_category();
-                    let short = category.chars().next().unwrap().to_uppercase();
-                    let prefix = ::std::format!("{}[{}{}{}]", category, short, #number, nested.get_number());
-                    ::std::borrow::Cow::Owned(prefix)
-                },
-            }
-        } else {
-            let category = cfg.category;
-            let short = category.chars().next().unwrap().to_uppercase();
-            let prefix = format!("{}[{}{}]", category, short, &number);
-            quote! {
-                Self::#name {..} => ::std::borrow::Cow::Borrowed(#prefix),
-            }
-        }
-    }
-    #[cfg(feature = "colored")]
-    fn write_str(s: impl std::fmt::Display) -> TokenStream2 {
-        let s = s.to_string();
-        quote! {f.write_str(#s)?;}
-    }
-    fn fmt(&self, number: String, cfg: Config) -> TokenStream2 {
-        let name = &self.variant.ident;
-        let msg = &self.msg;
-        #[cfg(feature = "colored")]
-        let prefix = Self::write_str(cfg.prefix());
-        #[cfg(feature = "colored")]
-        let infix = Self::write_str(cfg.infix());
-        #[cfg(feature = "colored")]
-        let suffix = Self::write_str(cfg.suffix());
-        #[cfg(not(feature = "colored"))]
-        let prefix = quote! {};
-        #[cfg(not(feature = "colored"))]
-        let infix = quote! {};
-        #[cfg(not(feature = "colored"))]
-        let suffix = quote! {};
-        let get_prefix = if cfg.nested {
-            quote! {&self.get_prefix()}
-        } else {
-            let prefix = format!(
-                "{}[{}{}]",
-                cfg.category,
-                cfg.category.chars().next().unwrap().to_uppercase(),
-                number,
-            );
-            quote! {#prefix}
-        };
-        match &self.variant.fields {
-            Fields::Named(fields) => {
-                assert!(!cfg.nested, "Named fields can't be nested error.");
-                let fields = fields
-                    .named
-                    .iter()
-                    .map(|field| field.ident.as_ref().unwrap());
-                quote! {
-                    Self::#name { #(#fields, )* } => {
-                        #prefix
-                        f.write_str(#get_prefix)?;
-                        f.write_str(": ")?;
-                        #infix
-                        ::core::write!{f, #msg}?;
-                        #suffix
-                        ::core::result::Result::Ok(())
-                    }
-                }
-            }
-            Fields::Unnamed(unnamed) => {
-                if cfg.nested {
-                    assert_eq!(
-                        unnamed.unnamed.len(),
-                        1,
-                        "Nested error can consists of one unnamed fields.",
-                    );
-                    quote! {
-                        Self::#name ( nested ) => {
-                            #prefix
-                            f.write_str(#get_prefix)?;
-                            f.write_str(": ")?;
-                            #infix
-                            ::core::write!{f, #msg, nested.get_desc()}?;
-                            #suffix
-                            ::core::result::Result::Ok(())
-                        }
-                    }
-                } else {
-                    let elements = unnamed
-                        .unnamed
-                        .iter()
-                        .enumerate()
-                        .map(|(i, _)| format_ident!("_{i}"))
-                        .collect::<Vec<_>>();
-                    quote! {
-                        Self::#name ( #(#elements, )* ) => {
-                            #prefix
-                            f.write_str(#get_prefix)?;
-                            f.write_str(": ")?;
-                            #infix
-                            ::core::write!{f, #msg, #(#elements, )*}?;
-                            #suffix
-                            ::core::result::Result::Ok(())
-                        }
-                    }
-                }
-            }
-            Fields::Unit => {
-                assert!(!cfg.nested, "Unit can't be nested error.");
-                quote! {
-                    Self::#name => {
-                        #prefix
-                        f.write_str(#get_prefix)?;
-                        f.write_str(": ")?;
-                        #infix
-                        ::core::write!{f, #msg}?;
-                        #suffix
-                        ::core::result::Result::Ok(())
-                    }
-                }
-            }
-        }
-    }
-}
-
+/// Tree node of error definitions.
 enum ErrorTree {
-    Prefix(Vec<Attribute>, LitInt, LitStr, Vec<ErrorTree>),
-    Variant(Vec<Attribute>, LitInt, ErrorVariant),
+    /// Prefix node.
+    Prefix(Span, Vec<Attribute>, Vec<ErrorTree>, Token![,]),
+    /// Leaf node.
+    ///
+    /// See [`syn::Variant`] and [`syn::DataStruct`].
+    Variant(Span, Vec<Attribute>, Ident, Fields, Token![,]),
+}
+
+impl ErrorTree {
+    fn attrs(&self) -> &[Attribute] {
+        match self {
+            ErrorTree::Prefix(_, attrs, _, _) => attrs,
+            ErrorTree::Variant(_, attrs, _, _, _) => attrs,
+        }
+    }
+    fn ident(&self) -> Option<&Ident> {
+        match self {
+            ErrorTree::Prefix(_, _, _, _) => None,
+            ErrorTree::Variant(_, _, ident, _, _) => Some(ident),
+        }
+    }
+    fn fields(&self) -> Option<&Fields> {
+        match self {
+            ErrorTree::Prefix(_, _, _, _) => None,
+            ErrorTree::Variant(_, _, _, fields, _) => Some(fields),
+        }
+    }
+    fn span(&self) -> Span {
+        match self {
+            ErrorTree::Prefix(span, _, _, _) => *span,
+            ErrorTree::Variant(span, _, _, _, _) => *span,
+        }
+    }
 }
 
 impl Parse for ErrorTree {
+    /// See [`Variant::parse`].
     fn parse(input: parse::ParseStream) -> syn::Result<Self> {
-        if input.peek2(LitStr) {
-            let attrs = input.call(Attribute::parse_outer)?;
-            let code = input.parse()?;
-            let desc = input.parse()?;
+        let attrs = input.call(Attribute::parse_outer)?;
+        if input.peek(Ident) {
+            let ident: Ident = input.parse()?;
+            let fields = if input.peek(token::Brace) {
+                Fields::Named(input.parse()?)
+            } else if input.peek(token::Paren) {
+                Fields::Unnamed(input.parse()?)
+            } else {
+                Fields::Unit
+            };
+            Ok(ErrorTree::Variant(
+                ident.span(),
+                attrs,
+                ident,
+                fields,
+                input.parse()?,
+            ))
+        } else {
+            let span = input.span();
             let children;
             braced!(children in input);
             let mut nodes = Vec::new();
@@ -507,124 +96,172 @@ impl Parse for ErrorTree {
                 let node = children.parse()?;
                 nodes.push(node);
             }
-            Ok(ErrorTree::Prefix(attrs, code, desc, nodes))
-        } else {
-            let attrs = input.call(Attribute::parse_outer)?;
-            let code = input.parse()?;
-            let variant = input.parse()?;
-            let _comma: Token![,] = input.parse()?;
-            Ok(ErrorTree::Variant(attrs, code, variant))
+            Ok(ErrorTree::Prefix(span, attrs, nodes, input.parse()?))
         }
     }
 }
 
-impl ErrorTree {
-    /// - [Config].
-    /// - Code.
-    /// - [ErrorVariant].
-    fn get_variants<'s>(
-        &'s self,
-        config: Config<'s>,
-        prenumber: &'_ str,
-    ) -> impl Iterator<Item = (Config<'s>, String, &'s ErrorVariant)> {
-        match self {
-            Self::Prefix(attrs, postnumber, _desc, children) => children
-                .iter()
-                .flat_map(|node| {
-                    let mut config = config.clone();
-                    config.on_attrs(attrs);
-                    node.get_variants(config, &format!("{prenumber}{postnumber}"))
-                })
-                .collect::<Vec<_>>()
-                .into_iter(),
-            Self::Variant(attrs, postnumber, var) => {
-                let code = format!("{prenumber}{postnumber}");
-                let mut config = config;
-                config.on_attrs(attrs);
-                vec![(config, code, var)].into_iter()
-            }
-        }
-    }
-    /// - Depth.
-    /// - Prefix.
-    /// - Variant name.
-    /// - Message (for [Display](core::fmt::Display)).
-    fn get_nodes<'s>(
-        &'s self,
-        config: Config<'s>,
-        prenumber: &str,
-        depth: usize,
-    ) -> impl Iterator<Item = (Config<'s>, usize, String, Option<String>, String)> {
-        match self {
-            Self::Prefix(_attrs, postnumber, desc, children) => {
-                let number = format!("{}{}", prenumber, postnumber);
-                once((config.clone(), depth, number.clone(), None, desc.value()))
-                    .chain(
-                        children
-                            .iter()
-                            .flat_map(|node| node.get_nodes(config.clone(), &number, depth + 1)),
-                    )
-                    .collect::<Vec<_>>()
-                    .into_iter()
-            }
-            Self::Variant(_attrs, postnumber, var) => {
-                let number = format!("{}{}", prenumber, postnumber);
-                vec![(
-                    config,
-                    depth,
-                    number,
-                    Some(var.variant.ident.to_string()),
-                    var.msg.value(),
-                )]
-                .into_iter()
-            }
+#[derive(Clone, Copy)]
+enum Kind {
+    Error,
+    Warn,
+}
+
+impl TryFrom<LitStr> for Kind {
+    type Error = Error;
+
+    fn try_from(value: LitStr) -> Result<Self> {
+        match value.value().as_str() {
+            "error" | "Error" => Ok(Kind::Error),
+            "warn" | "Warn" => Ok(Kind::Warn),
+            _ => Err(Error::new_spanned(
+                value,
+                "Kind must be either `Error` or `Warn`.",
+            )),
         }
     }
 }
 
+/// Configuration for each variant.
+#[derive(Clone)]
+struct Config {
+    kind: Option<Kind>,
+    code: String,
+    msg: Option<String>,
+    attrs: Vec<Attribute>,
+    ident: Option<Ident>,
+    fields: Option<Fields>,
+    depth: usize,
+    nested: bool,
+    span: Span,
+}
+
+impl Config {
+    const fn new(span: Span) -> Self {
+        Self {
+            kind: None,
+            code: String::new(),
+            msg: None,
+            attrs: Vec::new(),
+            ident: None,
+            fields: None,
+            depth: 0,
+            nested: false,
+            span,
+        }
+    }
+    fn process(
+        &self,
+        attrs: &[Attribute],
+        ident: Option<&Ident>,
+        fields: Option<&Fields>,
+        span: Span,
+    ) -> Result<Self> {
+        let mut kind = None;
+        let mut code = self.code.clone();
+        let mut msg = None;
+        let depth = self.depth + 1;
+        let mut nested = false;
+        let mut unused_attrs = Vec::new();
+
+        for attr in attrs {
+            if attr.path().is_ident("diag") {
+                attr.parse_nested_meta(|meta| {
+                    if meta.path.is_ident("kind") {
+                        let value: LitStr = meta.value()?.parse()?;
+                        kind = Some(value.try_into()?);
+                    } else if meta.path.is_ident("code") {
+                        let value: LitInt = meta.value()?.parse()?;
+                        code.push_str(value.to_string().as_str());
+                    } else if meta.path.is_ident("msg") {
+                        let value: LitStr = meta.value()?.parse()?;
+                        msg = Some(value.value());
+                    } else if meta.path.is_ident("nested") {
+                        nested = true;
+                    } else {
+                        return Err(Error::new_spanned(meta.path, "Unknown attribute key."));
+                    }
+                    Ok(())
+                })?
+            } else {
+                unused_attrs.push(attr.clone());
+            }
+        }
+
+        let ident = ident.cloned();
+        let fields = fields.cloned();
+        Ok(Self {
+            kind,
+            code,
+            msg,
+            attrs: unused_attrs,
+            ident,
+            fields,
+            depth,
+            nested,
+            span,
+        })
+    }
+}
+
+struct ErrorTreeIter<'i> {
+    stack: Vec<(&'i [ErrorTree], Config)>,
+}
+
+impl<'i> ErrorTreeIter<'i> {
+    fn new(tree: &'i [ErrorTree], attrs: &[Attribute], span: Span) -> Result<Self> {
+        Ok(Self {
+            stack: vec![(tree, Config::new(span).process(attrs, None, None, span)?)],
+        })
+    }
+    fn process_next(node: &'i ErrorTree, config: &Config, span: Span) -> Result<Config> {
+        let new_config = config.process(node.attrs(), node.ident(), node.fields(), span)?;
+        Ok(new_config)
+    }
+}
+
+impl<'i> Iterator for ErrorTreeIter<'i> {
+    type Item = Result<Config>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        while let Some((slice, config)) = self.stack.last_mut() {
+            if let Some((node, rest)) = slice.split_first() {
+                *slice = rest;
+                let config = Self::process_next(node, config, node.span())
+                    .map(Some)
+                    .transpose()?;
+                if let Ok(config) = &config {
+                    if let ErrorTree::Prefix(_, _, children, _) = node {
+                        self.stack.push((children.as_slice(), config.clone()));
+                    }
+                }
+                return Some(config);
+            } else {
+                self.stack.pop();
+            }
+        }
+        None
+    }
+}
+
+/// The entire error enum.
+///
+/// ```ignore
+/// pub ErrorName {
+///     // Variants...
+/// }
+/// ```
 struct ErrorEnum {
     attrs: Vec<Attribute>,
     vis: Visibility,
     name: Ident,
     generics: Generics,
-    variants: Vec<(Vec<Attribute>, Ident, String, LitStr, Vec<ErrorTree>)>,
+    roots: Vec<ErrorTree>,
 }
 
 impl ErrorEnum {
-    /// - [Config].
-    /// - Code.
-    /// - [ErrorVariant].
-    fn get_variants<'s>(&'s self) -> impl Iterator<Item = (Config, String, &'s ErrorVariant)> {
-        self.variants
-            .iter()
-            .flat_map(|(attrs, category, category_string, _, tree)| {
-                let mut config = Config::new(&category_string);
-                config.on_attrs(attrs);
-                config.on_category(category);
-                tree.iter()
-                    .flat_map(move |node| node.get_variants(config, ""))
-            })
-    }
-    /// - [Config].
-    /// - Depth.
-    /// - Prefix.
-    /// - Variant name.
-    /// - Message (for [Display](core::fmt::Display)).
-    fn get_nodes<'s>(&'s self) -> Vec<(Config, usize, String, Option<String>, String)> {
-        self.variants
-            .iter()
-            .flat_map(|(attrs, category, category_string, msg, tree)| {
-                let mut config = Config::new(&category_string);
-                config.on_category(category);
-                config.on_attrs(attrs);
-                once((config, 0, String::new(), None, msg.value())).chain(
-                    tree.iter()
-                        .flat_map(|node| node.get_nodes(config, "", 1))
-                        .collect::<Vec<_>>()
-                        .into_iter(),
-                )
-            })
-            .collect()
+    fn iter(&self) -> Result<ErrorTreeIter<'_>> {
+        ErrorTreeIter::new(self.roots.as_slice(), &self.attrs, self.name.span())
     }
 }
 
@@ -634,59 +271,173 @@ impl Parse for ErrorEnum {
         let vis = input.parse()?;
         let name = input.parse()?;
         let generics = input.parse()?;
-        let mut variants = Vec::new();
+        let mut roots = Vec::new();
         while !input.is_empty() {
-            let attrs = input.call(Attribute::parse_outer)?;
-            let category: syn::Ident = input.parse()?;
-            let category_string = category.to_string();
-            let msg = input.parse()?;
-            let inner;
-            braced!(inner in input);
-            let mut trees = Vec::new();
-            while !inner.is_empty() {
-                let tree = inner.parse()?;
-                trees.push(tree);
-            }
-            assert!(inner.is_empty());
-            variants.push((attrs, category, category_string, msg, trees));
+            roots.push(ErrorTree::parse(input)?);
         }
         Ok(Self {
             attrs,
             vis,
             generics,
             name,
-            variants,
+            roots,
         })
     }
 }
 
-impl ToTokens for ErrorEnum {
-    fn to_tokens(&self, tokens: &mut TokenStream2) {
+impl TryFrom<DeriveInput> for ErrorEnum {
+    type Error = Error;
+
+    fn try_from(value: DeriveInput) -> Result<Self> {
+        let DeriveInput {
+            attrs,
+            vis,
+            ident,
+            generics,
+            data,
+        } = value;
+        let mut roots = Vec::new();
+        match data {
+            syn::Data::Enum(data_enum) => {
+                for variant in data_enum.variants {
+                    let span = variant.ident.span();
+                    let node = ErrorTree::Variant(
+                        span,
+                        variant.attrs,
+                        variant.ident,
+                        variant.fields,
+                        Token![,](span),
+                    );
+                    roots.push(node);
+                }
+            }
+            _ => {
+                return Err(Error::new_spanned(
+                    ident,
+                    "ErrorEnum can only be derived for enums.",
+                ))
+            }
+        }
+        Ok(Self {
+            attrs,
+            vis,
+            name: ident,
+            generics,
+            roots,
+        })
+    }
+}
+
+impl ErrorEnum {
+    fn doc(&self) -> Result<Vec<String>> {
+        self.iter()?
+            .map(|config| {
+                let Config {
+                    code,
+                    depth,
+                    ident,
+                    msg,
+                    ..
+                } = config?;
+                let indent = "  ".repeat(depth - 2);
+                let msg = msg.unwrap_or_default();
+                Ok(match ident {
+                    Some(ident) => format!("{indent}- `{code}`(**{ident}**): {msg}"),
+                    None => format!("{indent}- `{code}`: {msg}"),
+                })
+            })
+            .collect()
+    }
+    fn variants(&self) -> Result<Vec<Variant>> {
+        self.iter()?
+            .filter_map(|config| {
+                config
+                    .map(
+                        |Config {
+                             attrs,
+                             ident,
+                             fields,
+                             ..
+                         }| { Some((attrs, ident?, fields?)) },
+                    )
+                    .transpose()
+            })
+            .map(|config| {
+                let (attrs, ident, fields) = config?;
+                Ok(Variant {
+                    attrs,
+                    ident,
+                    fields,
+                    discriminant: None,
+                })
+            })
+            .collect()
+    }
+    fn display(&self) -> Result<Vec<TokenStream2>> {
+        self.iter()?
+            .filter_map(|config| {
+                config
+                    .map(
+                        |Config {
+                             msg, ident, fields, ..
+                         }| { Some((msg, ident?, fields?)) },
+                    )
+                    .transpose()
+            })
+            .map(|config| {
+                let (msg, ident, fields) = config?;
+                match fields {
+                    Fields::Named(named) => {
+                        let members = named.named.iter().map(|f| f.ident.as_ref());
+                        Ok(quote! {
+                            #[allow(unused_variables)]
+                            Self::#ident { #(#members,)* } => {
+                                write!(f, #msg)
+                            },
+                        })
+                    }
+                    Fields::Unnamed(unnamed) => {
+                        static ARG: Lazy<Regex> = lazy_regex!(r#"\{(\d+)(:[^\{\}]*)?\}"#);
+                        let params = (0..unnamed.unnamed.len()).map(|i| format_ident!("_{}", i));
+                        let args = msg
+                            .as_ref()
+                            .map(|msg| {
+                                ARG.captures_iter(msg)
+                                    .map(|cap| {
+                                        let index =
+                                            cap.get(1).unwrap().as_str().parse::<usize>().unwrap();
+                                        format_ident!("_{}", index)
+                                    })
+                                    .collect::<Vec<_>>()
+                            })
+                            .unwrap_or_default();
+                        Ok(quote! {
+                            Self::#ident ( #(#params, )* ) => {
+                                write!(f, #msg #(, #args)* )
+                            },
+                        })
+                    }
+                    Fields::Unit => Ok(quote! {
+                        Self::#ident => {
+                            write!(f, #msg)
+                        },
+                    }),
+                }
+            })
+            .collect()
+    }
+    fn try_to_tokens(&self, tokens: &mut TokenStream2) -> Result<()> {
         let attrs = &self.attrs;
         let vis = &self.vis;
         let name = &self.name;
         let generics = &self.generics;
-        let doc = self
-            .get_nodes()
-            .into_iter()
-            .map(|(_config, depth, code, name, desc)| {
-                let indent = "  ".repeat(depth);
-                match name {
-                    Some(name) => format!("{indent}- `{code}`(**{name}**): {desc}"),
-                    None => format!("{indent}- `{code}`: {desc}"),
-                }
-            });
+
+        let doc = self.doc()?;
+
         let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
 
-        let error_variants = self.get_variants().collect::<Vec<_>>();
+        let variants = self.variants()?;
 
-        let variants = {
-            let mut tokens = TokenStream2::new();
-            error_variants.iter().for_each(|(cfg, number, var)| {
-                var.to_tokens(&format!("{}{}", cfg.category, number), &mut tokens)
-            });
-            tokens
-        };
         tokens.extend(quote! {
             #[doc = "List of error variants:"]
             #(
@@ -694,118 +445,137 @@ impl ToTokens for ErrorEnum {
             )*
             #(#attrs)*
             #vis enum #name #generics {
-                #variants
+                #(#variants, )*
             }
         });
 
-        let fmt = self
-            .get_variants()
-            .map(|(cfg, code, variant)| variant.fmt(code, cfg));
+        let display = self.display()?;
         tokens.extend(quote! {
             impl #impl_generics ::core::fmt::Display for #name #ty_generics #where_clause {
                 fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
                     match self {
-                        #(#fmt)*
+                        #(#display)*
                     }
                 }
             }
+            impl #impl_generics ::core::error::Error for #name #ty_generics #where_clause {}
         });
 
-        let get_category = self
-            .get_variants()
-            .map(|(cfg, _number, variant)| variant.get_category(cfg));
-        let get_number = self
-            .get_variants()
-            .map(|(cfg, number, variant)| variant.get_number(cfg, number));
-        let get_code = self
-            .get_variants()
-            .map(|(cfg, number, variant)| variant.get_code(cfg, number));
-        let get_prefix = self
-            .get_variants()
-            .map(|(cfg, number, variant)| variant.get_prefix(cfg, number));
-        let fmt_desc = self
-            .get_variants()
-            .map(|(_cfg, _number, variant)| variant.fmt_desc());
-        let get_desc = self
-            .get_variants()
-            .map(|(_cfg, _number, variant)| variant.get_desc());
-        tokens.extend(quote! {
-            impl #impl_generics #name #ty_generics #where_clause {
-                /// Write error category like `E`.
-                pub fn get_category(&self) -> &'static ::core::primitive::str {
-                    match self {
-                        #(#get_category)*
-                    }
-                }
-                /// Write error code number like `0000`.
-                pub fn get_number(&self) -> ::std::borrow::Cow<'static, str> {
-                    match self {
-                        #(#get_number)*
-                    }
-                }
-                /// Write error code like `E0000`.
-                pub fn get_code(&self) -> ::std::borrow::Cow<'static, str> {
-                    match self {
-                        #(#get_code)*
-                    }
-                }
-                /// Write error message prefix like `error[E0000]: `.
-                pub fn get_prefix(&self) -> ::std::borrow::Cow<'static, str> {
-                    match self {
-                        #(#get_prefix)*
-                    }
-                }
-                fn fmt_desc(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-                    match self {
-                        #(#fmt_desc)*
-                    }
-                }
-                /// Get error description.
-                pub fn get_desc(&self) -> String {
-                    match self {
-                        #(#get_desc)*
-                    }
-                }
-            }
+        // let get_category = self
+        //     .get_variants()
+        //     .map(|(cfg, _number, variant)| variant.get_category(cfg));
+        // let get_number = self
+        //     .get_variants()
+        //     .map(|(cfg, number, variant)| variant.get_number(cfg, number));
+        // let get_code = self
+        //     .get_variants()
+        //     .map(|(cfg, number, variant)| variant.get_code(cfg, number));
+        // let get_prefix = self
+        //     .get_variants()
+        //     .map(|(cfg, number, variant)| variant.get_prefix(cfg, number));
+        // let fmt_desc = self
+        //     .get_variants()
+        //     .map(|(_cfg, _number, variant)| variant.fmt_desc());
+        // let get_desc = self
+        //     .get_variants()
+        //     .map(|(_cfg, _number, variant)| variant.get_desc());
+        // tokens.extend(quote! {
+        //     impl #impl_generics #name #ty_generics #where_clause {
+        //         /// Write error category like `E`.
+        //         pub fn get_category(&self) -> &'static ::core::primitive::str {
+        //             match self {
+        //                 #(#get_category)*
+        //             }
+        //         }
+        //         /// Write error code number like `0000`.
+        //         pub fn get_number(&self) -> ::std::borrow::Cow<'static, str> {
+        //             match self {
+        //                 #(#get_number)*
+        //             }
+        //         }
+        //         /// Write error code like `E0000`.
+        //         pub fn get_code(&self) -> ::std::borrow::Cow<'static, str> {
+        //             match self {
+        //                 #(#get_code)*
+        //             }
+        //         }
+        //         /// Write error message prefix like `error[E0000]: `.
+        //         pub fn get_prefix(&self) -> ::std::borrow::Cow<'static, str> {
+        //             match self {
+        //                 #(#get_prefix)*
+        //             }
+        //         }
+        //         fn fmt_desc(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        //             match self {
+        //                 #(#fmt_desc)*
+        //             }
+        //         }
+        //         /// Get error description.
+        //         pub fn get_desc(&self) -> String {
+        //             match self {
+        //                 #(#get_desc)*
+        //             }
+        //         }
+        //     }
+        // });
+
+        Ok(())
+    }
+}
+
+impl ToTokens for ErrorEnum {
+    fn to_tokens(&self, tokens: &mut TokenStream2) {
+        self.try_to_tokens(tokens).unwrap_or_else(|err| {
+            let diag = err.to_compile_error();
+            tokens.extend(diag);
         });
     }
 }
 
-/// Define a new error type.
+/// Define a new layered error type.
 ///
-/// First, provide the name of the type.
-/// Second, provide each variant of the error by following order:
-/// 1. Code.
-/// 2. Attributes (optional).
-///     - `#[bold]` for bold text.
-///     - `#[dimmed]` for dimmed text.
-///     - `#[italic]` for italic text.
-///     - `#[underline]` for text with an underline.
-///     - `#[blink]` for blinking text.
-///     - `#[reverse]` for text with reversed color.
-///     - `#[hidden]` for hidden text.
-///     - `#[strikethrough]` for text with strikethrough.
-///     - `#[color = "<color name>"]` for overriding default color. Only 8 colors below are supported:
+/// Syntax:
 ///
-///         - `black`.
-///         - `red`.
-///         - `green`.
-///         - `yellow`.
-///         - `blue`.
-///         - `purple`.
-///         - `cyan`.
-///         - `white`.
+/// ```ignore
+/// $error_type =
+///     $vis:vis $name:ident
+///         $($variant:variant, )*
 ///
-///     - `#[color = FIXED_COLOR]` for overriding default color with a color code.
-///         See [ansi_term::Color].
-///     - `#[color = (R, G, B)]` for overriding default color with RGB.
-///     - `#[nested]` if it's a nested error generated by [error_enum](crate).
-/// 3. Name.
-/// 4. Fields.
-/// 5. Message.
-/// 6. A trailing comma.
+/// $variant =
+///   // Prefix node.
+///     #[diag(kind = $kind:lit_str)]
+///     #[diag(code = $code:lit_int)]
+///     #[diag(msg = $msg:lit_str)]
+///     {
+///         $($child_variant:variant, )*
+///     }
+///   // Leaf node (three forms).
+///   | #[diag(kind = $kind:lit_str)]
+///     #[diag(code = $code:lit_int)]
+///     #[diag(msg = $msg:lit_str)]
+///     $ident:ident ($($field_ty:ty),*)
+///   | #[diag(kind = $kind:lit_str)]
+///     #[diag(code = $code:lit_int)]
+///     #[diag(msg = $msg:lit_str)]
+///     $ident:ident { $($field_name:ident : $field_ty:ty),* }
+///   | #[diag(kind = $kind:lit_str)]
+///     #[diag(code = $code:lit_int)]
+///     #[diag(msg = $msg:lit_str)]
+///     $ident:ident
+/// ```
 #[proc_macro]
 pub fn error_type(token: TokenStream) -> TokenStream {
     let error = parse_macro_input!(token as ErrorEnum);
     error.to_token_stream().into()
+}
+
+/// Implement error capabilities for an existing enum.
+///
+/// See [`error_type!`] for syntax details.
+#[proc_macro_derive(ErrorType, attributes(diag))]
+pub fn error_enum(token: TokenStream) -> TokenStream {
+    let input: DeriveInput = parse_macro_input!(token as DeriveInput);
+    let error = ErrorEnum::try_from(input)
+        .map_or_else(|err| err.to_compile_error(), |e| e.to_token_stream());
+    error.into()
 }

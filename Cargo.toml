@@ -13,14 +13,12 @@ license = "MIT/Apache-2.0"
 proc-macro = true
 
 [features]
-default = ["colored"]
-colored = ["dep:ansi_term"]
 
 [dependencies]
 syn = { version = "2", features = ["full"] }
 quote = "1"
 proc-macro2 = "1"
-ansi_term = { version = "0.12", optional = true }
+lazy-regex = "3.4.2"
 
 [dev-dependencies]
 annotate-snippets = { version = "0.9.1" }
