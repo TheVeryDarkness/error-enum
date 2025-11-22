@@ -1,16 +1,4 @@
-//! To generate [Display](core::fmt::Display) implementation and
-//! documentation comments for error types.
-//!
-//! |     Concept      |            Example             |
-//! |:----------------:|:------------------------------:|
-//! |      Number      |             `1234`             |
-//! |       Code       |            `E1234`             |
-//! |     Category     |            `error`             |
-//! | Category Acronym |              `E`               |
-//! |       Kind       |         `error[E1234]`         |
-//! |  Message Prefix  |        `error[E1234]: `        |
-//! |   Description    |        `Access denied.`        |
-//! |     Message      | `error[E1234]: Access denied.` |
+#![doc = include_str!("../README.md")]
 
 #![warn(rust_2021_compatibility, rustdoc::all, missing_docs)]
 
