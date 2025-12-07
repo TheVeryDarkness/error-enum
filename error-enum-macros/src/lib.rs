@@ -676,63 +676,6 @@ impl ErrorEnum {
                 }
             }
         });
-        // let get_category = self
-        //     .get_variants()
-        //     .map(|(cfg, _number, variant)| variant.get_category(cfg));
-        // let get_number = self
-        //     .get_variants()
-        //     .map(|(cfg, number, variant)| variant.get_number(cfg, number));
-        // let get_code = self
-        //     .get_variants()
-        //     .map(|(cfg, number, variant)| variant.get_code(cfg, number));
-        // let get_prefix = self
-        //     .get_variants()
-        //     .map(|(cfg, number, variant)| variant.get_prefix(cfg, number));
-        // let fmt_desc = self
-        //     .get_variants()
-        //     .map(|(_cfg, _number, variant)| variant.fmt_desc());
-        // let get_desc = self
-        //     .get_variants()
-        //     .map(|(_cfg, _number, variant)| variant.get_desc());
-        // tokens.extend(quote! {
-        //     impl #impl_generics #name #ty_generics #where_clause {
-        //         /// Write error category like `E`.
-        //         pub fn get_category(&self) -> &'static ::core::primitive::str {
-        //             match self {
-        //                 #(#get_category)*
-        //             }
-        //         }
-        //         /// Write error code number like `0000`.
-        //         pub fn get_number(&self) -> ::std::borrow::Cow<'static, str> {
-        //             match self {
-        //                 #(#get_number)*
-        //             }
-        //         }
-        //         /// Write error code like `E0000`.
-        //         pub fn get_code(&self) -> ::std::borrow::Cow<'static, str> {
-        //             match self {
-        //                 #(#get_code)*
-        //             }
-        //         }
-        //         /// Write error message prefix like `error[E0000]: `.
-        //         pub fn get_prefix(&self) -> ::std::borrow::Cow<'static, str> {
-        //             match self {
-        //                 #(#get_prefix)*
-        //             }
-        //         }
-        //         fn fmt_desc(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-        //             match self {
-        //                 #(#fmt_desc)*
-        //             }
-        //         }
-        //         /// Get error description.
-        //         pub fn get_desc(&self) -> String {
-        //             match self {
-        //                 #(#get_desc)*
-        //             }
-        //         }
-        //     }
-        // });
 
         Ok(())
     }
