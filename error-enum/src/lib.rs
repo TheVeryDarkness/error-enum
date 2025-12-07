@@ -142,7 +142,6 @@ pub trait ErrorEnum: std::error::Error {
         );
         Ok(result)
     }
-
     /// Format the error as an [annotate snippet] with [format options].
     ///
     /// [annotate snippet]: https://docs.rs/annotate-snippets/0.9.1/annotate_snippets/snippet/struct.Snippet.html
@@ -173,7 +172,6 @@ pub trait ErrorEnum: std::error::Error {
     fn as_miette_diagnostic(&self) -> impl miette::Diagnostic + '_ {
         miette_impl::Wrapper(self)
     }
-
     /// Format the error as a [Miette diagnostic] with a [Miette handler].
     ///
     /// [Miette diagnostic]: https://docs.rs/miette/7.6.0/miette/trait.Diagnostic.html
@@ -206,6 +204,18 @@ impl<T: ErrorEnum + ?Sized> ErrorEnum for &T {
     }
     fn primary_message(&self) -> Self::Message {
         (*self).primary_message()
+    }
+
+    #[cfg(feature = "annotate-snippets")]
+    fn fmt_as_annotate_snippets(&self) -> Result<String, std::io::Error> {
+        (*self).fmt_as_annotate_snippets()
+    }
+    #[cfg(feature = "annotate-snippets")]
+    fn fmt_as_annotate_snippets_with_opts(
+        &self,
+        opts: annotate_snippets::display_list::FormatOptions,
+    ) -> Result<String, std::io::Error> {
+        (*self).fmt_as_annotate_snippets_with_opts(opts)
     }
 
     #[cfg(feature = "ariadne")]
