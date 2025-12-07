@@ -104,22 +104,29 @@ fn miette() {
             "\
 1 and 2 is not red.
     Diagnostic severity: error
+Begin snippet for  starting at line 1, column 1
+
 diagnostic code: E01
+For more details, see:
+
 "
         );
     }
 
     {
         let s = error.fmt_as_miette_diagnostic_with(&GraphicalReportHandler::new_themed(
-            GraphicalTheme::unicode_nocolor(),
+            GraphicalTheme::none(),
         ));
         assert_eq!(
             s,
             "\
-E01
+\u{1b}]8;;\u{1b}\\E01 (link)\u{1b}]8;;\u{1b}\\
 
-  × 1 and 2 is not red.
-"
+  x 1 and 2 is not red.
+   ,-[:1:1]
+   `----
+",
+            "{s}"
         );
     }
 
@@ -134,9 +141,13 @@ E01
         assert_eq!(
             s,
             "\
-E05
+\u{1b}]8;;foo.rs\u{1b}\\E05 (link)\u{1b}]8;;\u{1b}\\
 
   × All in white.
+   ╭─[foo.rs:1:5]
+ 1 │ use white;
+   ·     ─────
+   ╰────
 "
         );
     }

@@ -44,7 +44,12 @@ error_type! {
 }
 
 fn main() {
-    let span = SimpleSpan::new("file://test.py", "print(1 + '1')", 10, 13);
+    let span = SimpleSpan::new(
+        "file://test.py",
+        "print(1 + 2)\nprint(1 + '1')\nprint('1' + '1')",
+        23,
+        26,
+    );
     let error = MyError::TypeError {
         term: "'1'".to_owned(),
         expected_ty: "int".to_owned(),
