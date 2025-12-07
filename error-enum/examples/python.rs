@@ -1,6 +1,6 @@
 //! An example.
 
-use error_enum::{error_type, SimpleSpan};
+use error_enum::{error_type, ErrorEnum, SimpleSpan};
 
 error_type! {
     /// Defined error type, will be generated as an `enum`.
@@ -48,11 +48,31 @@ fn main() {
         term: "'1'".to_owned(),
         expected_ty: "int".to_owned(),
         actual_ty: "str".to_owned(),
-        span: SimpleSpan::new("test.py", "1 + '1'", 4, 7),
+        span: SimpleSpan::new("test.py", "print(1 + '1')", 10, 13),
     };
 
     assert_eq!(
         error.to_string(),
         "`'1'` is expected to be of type `int`, but is of type `str`."
+    );
+    assert_eq!(error.code(), "E00");
+
+    #[cfg(feature = "annotate-snippets")]
+    eprintln!("{}", error.fmt_as_annotate_snippets().unwrap());
+
+    #[cfg(feature = "ariadne")]
+    eprintln!("{}", error.fmt_as_ariadne_report().unwrap());
+
+    #[cfg(feature = "miette")]
+    eprintln!(
+        "{}",
+        error.fmt_as_miette_diagnostic_with(&miette::NarratableReportHandler::new())
+    );
+    #[cfg(feature = "miette")]
+    eprintln!(
+        "{}",
+        error.fmt_as_miette_diagnostic_with(&miette::GraphicalReportHandler::new_themed(
+            miette::GraphicalTheme::unicode()
+        ))
     );
 }

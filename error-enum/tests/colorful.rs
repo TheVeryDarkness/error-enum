@@ -1,5 +1,5 @@
 //! Simple tests for error messages.
-use error_enum::ErrorEnum;
+use error_enum::{ErrorEnum, SimpleSpan};
 use error_enum_macros::error_type;
 
 error_type! {
@@ -30,7 +30,10 @@ error_type! {
                 #[diag(msg = "All in {white}.")]
                 WhiteError {
                     /// Color name
-                    white: String
+                    white: String,
+                    /// Span
+                    #[diag(span)]
+                    span: SimpleSpan,
                 },
             },
         },
@@ -38,30 +41,60 @@ error_type! {
 }
 
 #[test]
+fn basic() {
+    let error = ColoredError::RedError(1, 2);
+
+    assert_eq!(error.code(), "E01");
+}
+
+#[test]
 #[cfg(feature = "miette")]
 fn miette() {
     use miette::{GraphicalReportHandler, GraphicalTheme, NarratableReportHandler};
-    let report = ColoredError::RedError(1, 2).as_miette_diagnostic();
+
+    let error = ColoredError::RedError(1, 2);
 
     {
-        let mut s = String::new();
-        NarratableReportHandler::new()
-            .render_report(&mut s, &report)
-            .unwrap();
+        let s = error.fmt_as_miette_diagnostic_with(&NarratableReportHandler::new());
         assert_eq!(
             s,
             "\
 1 and 2 is not red.
     Diagnostic severity: error
-diagnostic code: 01
+diagnostic code: E01
 "
         );
     }
 
     {
-        let mut s = String::new();
-        GraphicalReportHandler::new_themed(GraphicalTheme::ascii())
-            .render_report(&mut s, &report)
-            .unwrap();
+        let s = error.fmt_as_miette_diagnostic_with(&GraphicalReportHandler::new_themed(
+            GraphicalTheme::unicode_nocolor(),
+        ));
+        assert_eq!(
+            s,
+            "\
+E01
+
+  × 1 and 2 is not red.
+"
+        );
+    }
+
+    let error = ColoredError::WhiteError {
+        white: "white".into(),
+        span: SimpleSpan::new("foo.rs", "use white;", 4, 9),
+    };
+    {
+        let s = error.fmt_as_miette_diagnostic_with(&GraphicalReportHandler::new_themed(
+            GraphicalTheme::unicode_nocolor(),
+        ));
+        assert_eq!(
+            s,
+            "\
+E05
+
+  × All in white.
+"
+        );
     }
 }
