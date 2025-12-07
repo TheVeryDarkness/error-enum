@@ -27,7 +27,7 @@ pub trait Span: Clone {
 }
 
 /// A simple implementation of [`Span`].
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SimpleSpan {
     uri: Arc<str>,
     source: Arc<str>,

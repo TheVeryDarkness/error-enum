@@ -1,2 +1,5 @@
 [alias]
 cov = "llvm-cov --html"
+
+[env]
+RUST_BACKTRACE = "1"

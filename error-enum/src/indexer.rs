@@ -55,7 +55,7 @@ impl_indexable!(Rc<T>);
 impl_indexable!(Arc<T>);
 
 /// An [`Indexer`] that stores ending positions of every line (including trailing newlines).
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 #[repr(transparent)]
 pub struct LineIndexer([usize]);
 
@@ -119,14 +119,18 @@ impl Indexer for LineIndexer {
         let start = if context_lines_before == 0 {
             start
         } else {
-            self.line_at(start).saturating_sub(context_lines_before)
+            self.line_at(start)
+                .saturating_sub(context_lines_before)
+                .checked_sub(1)
+                .map_or_else(|| 0, |i| self.0[i])
         };
         let end = if context_lines_after == 0 {
             end
         } else {
-            self.line_at(end)
+            self.0[self
+                .line_at(end)
                 .saturating_add(context_lines_after)
-                .min(self.0.len())
+                .min(self.0.len() - 1)]
         };
         (start, end)
     }

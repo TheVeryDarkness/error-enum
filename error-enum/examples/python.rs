@@ -44,11 +44,12 @@ error_type! {
 }
 
 fn main() {
+    let span = SimpleSpan::new("file://test.py", "print(1 + '1')", 10, 13);
     let error = MyError::TypeError {
         term: "'1'".to_owned(),
         expected_ty: "int".to_owned(),
         actual_ty: "str".to_owned(),
-        span: SimpleSpan::new("test.py", "print(1 + '1')", 10, 13),
+        span: span.clone(),
     };
 
     assert_eq!(
@@ -56,21 +57,40 @@ fn main() {
         "`'1'` is expected to be of type `int`, but is of type `str`."
     );
     assert_eq!(error.code(), "E00");
+    assert_eq!(error.primary_span(), span);
 
     #[cfg(feature = "annotate-snippets")]
-    eprintln!("{}", error.fmt_as_annotate_snippets().unwrap());
+    eprintln!(
+        "---------- annotate-snippets ----------\n{}",
+        error.fmt_as_annotate_snippets().unwrap()
+    );
 
     #[cfg(feature = "ariadne")]
-    eprintln!("{}", error.fmt_as_ariadne_report().unwrap());
+    eprintln!(
+        "---------- ariadne ----------\n{}",
+        error.fmt_as_ariadne_report().unwrap()
+    );
 
     #[cfg(feature = "miette")]
     eprintln!(
-        "{}",
+        "---------- miette (Narratable) ----------\n{}",
         error.fmt_as_miette_diagnostic_with(&miette::NarratableReportHandler::new())
     );
     #[cfg(feature = "miette")]
     eprintln!(
-        "{}",
+        "---------- miette (JSON) ----------\n{}",
+        error.fmt_as_miette_diagnostic_with(&miette::JSONReportHandler::new())
+    );
+    #[cfg(feature = "miette")]
+    eprintln!(
+        "---------- miette (ASCII Graphical) ----------\n{}",
+        error.fmt_as_miette_diagnostic_with(&miette::GraphicalReportHandler::new_themed(
+            miette::GraphicalTheme::ascii()
+        ))
+    );
+    #[cfg(feature = "miette")]
+    eprintln!(
+        "---------- miette (Unicode Graphical) ----------\n{}",
         error.fmt_as_miette_diagnostic_with(&miette::GraphicalReportHandler::new_themed(
             miette::GraphicalTheme::unicode()
         ))
