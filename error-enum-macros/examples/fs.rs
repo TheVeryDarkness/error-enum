@@ -1,3 +1,6 @@
+//! Example of defining file system related errors and warnings with [`error_type!`] macro.
+
+use error_enum::ErrorEnum;
 use error_enum_macros::error_type;
 use std::path::PathBuf;
 
@@ -7,20 +10,23 @@ error_type! {
         #[diag(kind = "Error")]
         #[diag(msg = "Errors.")]
         {
-            #[diag(code = 0)]
+            #[diag(number = "0")]
             #[diag(msg = "File Kind-Related Errors.")]
             {
-                #[diag(code = 0)]
+                #[diag(number = "0")]
                 #[diag(msg = "File {path:?} Not Found")]
-                FileNotFound {path: PathBuf},
-                #[diag(code = 1)]
+                FileNotFound {
+                    /// File path
+                    path: PathBuf
+                },
+                #[diag(number = "1")]
                 #[diag(msg = "Path {0:?} does not point to a file.")]
                 NotAFile (PathBuf),
             },
-            #[diag(code = 1)]
+            #[diag(number = "1")]
             #[diag(msg = "Access-Related Errors.")]
             {
-                #[diag(code = 1)]
+                #[diag(number = "1")]
                 #[diag(msg = "Access Denied.")]
                 AccessDenied,
             },
@@ -28,35 +34,49 @@ error_type! {
         #[diag(kind = "Warn")]
         #[diag(msg = "Warnings.")]
         {
-            #[diag(code = 0)]
+            #[diag(number = "0")]
             #[diag(msg = "File Content-Related Warnings.")]
             {
-                #[diag(code = 0)]
+                #[diag(number = "0")]
                 #[diag(msg = "File {path:?} is too big. Consider read it with stream or in parts.")]
-                FileTooLarge {path: PathBuf},
+                FileTooLarge {
+                    /// File path
+                    path: PathBuf
+                },
             },
         },
     }
 }
 
+#[track_caller]
+fn test_error(err: &FileSystemError, expected: &str, code: &str)
+where
+    FileSystemError: ErrorEnum,
+{
+    let msg = err.to_string();
+    assert_eq!(msg, expected, "Got message: {}", msg);
+    assert_eq!(err.code(), code, "Got code: {}", err.code());
+}
+
 fn main() {
-    assert_eq!(
-        FileSystemError::FileNotFound {
-            path: "fs.rs".into()
-        }
-        .to_string(),
+    test_error(
+        &FileSystemError::FileNotFound {
+            path: "fs.rs".into(),
+        },
         "File \"fs.rs\" Not Found",
+        "E00",
     );
-    assert_eq!(
-        FileSystemError::NotAFile("target".into()).to_string(),
-        "Path \"target\" does not point to a file."
+    test_error(
+        &FileSystemError::NotAFile("target".into()),
+        "Path \"target\" does not point to a file.",
+        "E01",
     );
-    assert_eq!(FileSystemError::AccessDenied.to_string(), "Access Denied.");
-    assert_eq!(
-        FileSystemError::FileTooLarge {
+    test_error(&FileSystemError::AccessDenied, "Access Denied.", "E11");
+    test_error(
+        &FileSystemError::FileTooLarge {
             path: "data.json".into(),
-        }
-        .to_string(),
-        "File \"data.json\" is too big. Consider read it with stream or in parts."
+        },
+        "File \"data.json\" is too big. Consider read it with stream or in parts.",
+        "W00",
     );
 }

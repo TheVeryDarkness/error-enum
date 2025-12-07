@@ -7,18 +7,23 @@ keywords.workspace = true
 description.workspace = true
 license.workspace = true
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [lib]
 proc-macro = true
 
 [features]
 
 [dependencies]
-syn = { version = "2", features = ["full"] }
-quote = "1"
-proc-macro2 = "1"
-lazy-regex = "3.4.2"
+syn.workspace = true
+quote.workspace = true
+proc-macro2.workspace = true
+lazy-regex.workspace = true
 
 [dev-dependencies]
-annotate-snippets = { version = "0.9.1" }
+error-enum.workspace = true
+
+chloro.workspace = true
+prettydiff.workspace = true
+rust-format.workspace = true
+
+[lints]
+workspace = true

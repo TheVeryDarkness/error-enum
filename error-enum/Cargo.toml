@@ -1,0 +1,28 @@
+[package]
+name = "error-enum"
+version.workspace = true
+edition.workspace = true
+readme.workspace = true
+keywords.workspace = true
+description.workspace = true
+license.workspace = true
+
+[features]
+annotate-snippets = ["dep:annotate-snippets"]
+ariadne = ["dep:ariadne"]
+miette = ["dep:miette"]
+
+[dependencies]
+error-enum-macros.workspace = true
+
+annotate-snippets = { workspace = true, optional = true }
+ariadne = { workspace = true, optional = true }
+miette = { workspace = true, optional = true }
+
+[dev-dependencies]
+annotate-snippets.workspace = true
+ariadne.workspace = true
+miette = { version = "7.6.0", default-features = false, features = ["fancy"] }
+
+[lints]
+workspace = true

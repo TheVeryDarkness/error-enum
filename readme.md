@@ -1,8 +1,8 @@
-# Error with Codes
+# Error Enum
 
-Used to generate documentation comments and Display for error types.
+Used to generate documentation comments and `Display` implementation for tree-structured error types.
 
-To generate [`core::fmt::Display`](https://doc.rust-lang.org/stable/core/fmt/trait.Display.html) implementation and documentation comments for error types.
+## Concepts
 
 |    Concept     |            Example             |
 | :------------: | :----------------------------: |

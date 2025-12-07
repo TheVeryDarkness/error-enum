@@ -7,6 +7,41 @@ description = "Provide a easy way to define an enum that represents errors with 
 license = "MIT/Apache-2.0"
 
 [workspace]
-members = ["error-enum-macros"]
+resolver = "3"
+members = ["error-enum", "error-enum-macros"]
+
+[workspace.dependencies]
+error-enum = { path = "error-enum", version = "0.4.1" }
+error-enum-macros = { path = "error-enum-macros", version = "0.4.1" }
+
+chloro = "0.7.5"
+annotate-snippets = { version = "0.9.1" }
+ariadne = { version = "0.6.0" }
+lazy-regex = "3.4.2"
+miette = { version = "7.6.0", default-features = false }
+proc-macro2 = "1"
+prettydiff = "0.9.0"
+quote = "1"
+rust-format = "0.3.4"
+syn = { version = "2", features = ["full"] }
+
+[workspace.lints.rust]
+missing_docs = "deny"
+private_interfaces = "deny"
+
+[workspace.lints.rustdoc]
+invalid_codeblock_attributes = "deny"
+bare_urls = "deny"
+broken_intra_doc_links = "deny"
+invalid_html_tags = "deny"
+invalid_rust_codeblocks = "deny"
+unescaped_backticks = "deny"
+
+[workspace.lints.clippy]
+unwrap_in_result = "deny"
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
+todo = "deny"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
