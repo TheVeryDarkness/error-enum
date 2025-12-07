@@ -21,7 +21,7 @@ miette = { workspace = true, optional = true }
 stringzilla.workspace = true
 
 [dev-dependencies]
-annotate-snippets.workspace = true
+annotate-snippets = { version = "0.9.1", features = ["color", "yansi-term"] }
 ariadne.workspace = true
 miette = { version = "7.6.0", default-features = false, features = ["fancy"] }
 

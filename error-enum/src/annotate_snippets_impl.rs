@@ -1,7 +1,7 @@
-use crate::{ErrorEnum, Kind};
+use crate::{ErrorEnum, Kind, Span};
 use annotate_snippets::{
     display_list::{DisplayList, FormatOptions},
-    snippet::{Annotation, AnnotationType, Snippet},
+    snippet::{Annotation, AnnotationType, Slice, Snippet, SourceAnnotation},
 };
 
 impl From<Kind> for AnnotationType {
@@ -18,6 +18,7 @@ pub(crate) fn fmt_as_annotate_snippets<T: ErrorEnum + ?Sized>(
     opt: FormatOptions,
 ) -> String {
     let primary_message = error.primary_message().to_string();
+    let primary_span = error.primary_span();
     let kind = error.kind();
     let title = Annotation {
         id: Some(error.code()),
@@ -26,7 +27,20 @@ pub(crate) fn fmt_as_annotate_snippets<T: ErrorEnum + ?Sized>(
     };
     let title = Some(title);
     let footer = Vec::new();
-    let slices = Vec::new();
+    let uri = primary_span.uri().to_string();
+    let slices = [Slice {
+        source: primary_span.source_text().as_ref(),
+        line_start: 1,
+        origin: Some(&uri),
+        annotations: [SourceAnnotation {
+            range: (primary_span.range().start, primary_span.range().end),
+            label: &primary_message,
+            annotation_type: kind.into(),
+        }]
+        .into(),
+        fold: true,
+    }]
+    .into();
     let snippet = Snippet {
         title,
         footer,
