@@ -48,6 +48,49 @@ fn basic() {
 }
 
 #[test]
+#[cfg(feature = "ariadne")]
+fn ariadne() {
+    use ariadne::Config;
+    let error = ColoredError::RedError(1, 2);
+
+    {
+        let s = error
+            .fmt_as_ariadne_report_with(Config::new().with_color(false))
+            .unwrap();
+        assert_eq!(
+            s,
+            "\
+[E01] Error: 1 and 2 is not red.
+   ╭─[ :1:1 ]
+   │
+ 1 │ 
+───╯
+"
+        );
+    }
+
+    let error = ColoredError::WhiteError {
+        white: "white".into(),
+        span: SimpleSpan::new("foo.rs", "use white;", 4, 9),
+    };
+    {
+        let s = error
+            .fmt_as_ariadne_report_with(Config::new().with_color(false))
+            .unwrap();
+        assert_eq!(
+            s,
+            "\
+[E05] Error: All in white.
+   ╭─[ foo.rs:1:5 ]
+   │
+ 1 │ use white;
+───╯
+"
+        );
+    }
+}
+
+#[test]
 #[cfg(feature = "miette")]
 fn miette() {
     use miette::{GraphicalReportHandler, GraphicalTheme, NarratableReportHandler};

@@ -1,5 +1,5 @@
 use crate::{ErrorEnum, Kind, Span};
-use ariadne::{Report, ReportKind};
+use ariadne::{Config, Label, Report, ReportKind};
 use std::io;
 
 impl From<Kind> for ReportKind<'_> {
@@ -80,13 +80,16 @@ impl<T: ErrorEnum + ?Sized> ariadne::Cache<<T::Span as Span>::Uri> for Cache<T> 
 pub(crate) fn to_ariadne_report<T: ErrorEnum + ?Sized>(
     error: &T,
     buf: &mut impl io::Write,
+    config: Config,
 ) -> Result<(), io::Error> {
     let primary_span = error.primary_span();
     let primary_message = error.primary_message();
     let cache: Cache<T> = Cache::from_iter(std::iter::once(primary_span.clone()));
-    Report::build(error.kind().into(), SpanWrapper(primary_span))
-        .with_code(format!("{}{}", error.kind().short_str(), error.number()))
-        .with_message(format!("{}", primary_message))
+    Report::build(error.kind().into(), SpanWrapper(primary_span.clone()))
+        .with_code(error.code())
+        .with_message(primary_message)
+        .with_label(Label::new(SpanWrapper(primary_span)))
+        .with_config(config)
         .finish()
         .write(cache, buf)
 }

@@ -93,7 +93,24 @@ pub trait ErrorEnum: std::error::Error {
     #[cfg(feature = "ariadne")]
     fn fmt_as_ariadne_report(&self) -> Result<String, std::io::Error> {
         let mut result = Vec::new();
-        ariadne_impl::to_ariadne_report(self, &mut result)?;
+        ariadne_impl::to_ariadne_report(
+            self,
+            &mut result,
+            ariadne::Config::new().with_index_type(ariadne::IndexType::Byte),
+        )?;
+        Ok(String::from_utf8(result).unwrap())
+    }
+    /// Format the error as an [Ariadne report] with [Ariadne config]
+    ///
+    /// [Ariadne report]: https://docs.rs/ariadne/0.6.0/ariadne/struct.Report.html
+    /// [Ariadne config]: https://docs.rs/ariadne/0.6.0/ariadne/struct.Config.html
+    #[cfg(feature = "ariadne")]
+    fn fmt_as_ariadne_report_with(
+        &self,
+        config: ariadne::Config,
+    ) -> Result<String, std::io::Error> {
+        let mut result = Vec::new();
+        ariadne_impl::to_ariadne_report(self, &mut result, config)?;
         Ok(String::from_utf8(result).unwrap())
     }
 
@@ -156,6 +173,13 @@ impl<T: ErrorEnum + ?Sized> ErrorEnum for &T {
     #[cfg(feature = "ariadne")]
     fn fmt_as_ariadne_report(&self) -> Result<String, std::io::Error> {
         (*self).fmt_as_ariadne_report()
+    }
+    #[cfg(feature = "ariadne")]
+    fn fmt_as_ariadne_report_with(
+        &self,
+        config: ariadne::Config,
+    ) -> Result<String, std::io::Error> {
+        (*self).fmt_as_ariadne_report_with(config)
     }
 
     #[cfg(feature = "miette")]
