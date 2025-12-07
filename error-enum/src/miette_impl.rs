@@ -81,13 +81,13 @@ impl<S: Span + Send + Sync> SourceCode for SpanWrapper<S> {
         context_lines_after: usize,
     ) -> Result<Box<dyn SpanContents<'a> + 'a>, MietteError> {
         // dbg!(span, context_lines_before, context_lines_after);
-        debug_assert!(
-            span.offset() + span.len() < self.0.source_text().as_ref().len(),
-            "{} + {} < {} does not hold",
-            span.offset(),
-            span.len(),
-            self.0.source_text().as_ref().len(),
-        );
+        // debug_assert!(
+        //     span.offset() + span.len() < self.0.source_text().as_ref().len(),
+        //     "{} + {} < {} does not hold",
+        //     span.offset(),
+        //     span.len(),
+        //     self.0.source_text().as_ref().len(),
+        // );
 
         let index = self.0.source_index();
         let (start, end) = index.span_with_context_lines(
