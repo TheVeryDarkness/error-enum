@@ -10,6 +10,8 @@
 pub use error_enum_macros::{error_type, ErrorType};
 use std::{fmt, ops::Range, sync::Arc};
 
+#[cfg(feature = "annotate-snippets")]
+mod annotate_snippets_impl;
 #[cfg(feature = "ariadne")]
 mod ariadne_impl;
 #[cfg(feature = "miette")]
@@ -129,9 +131,34 @@ pub trait ErrorEnum: std::error::Error {
     /// Get the primary span and message of the error.
     fn primary_message(&self) -> Self::Message;
 
+    /// Format the error as an [annotate snippet].
+    ///
+    /// [annotate snippet]: https://docs.rs/annotate-snippets/0.9.1/annotate_snippets/snippet/struct.Snippet.html
+    #[cfg(feature = "annotate-snippets")]
+    fn fmt_as_annotate_snippets(&self) -> Result<String, std::io::Error> {
+        let result = annotate_snippets_impl::fmt_as_annotate_snippets(
+            self,
+            annotate_snippets::display_list::FormatOptions::default(),
+        );
+        Ok(result)
+    }
+
+    /// Format the error as an [annotate snippet] with [format options].
+    ///
+    /// [annotate snippet]: https://docs.rs/annotate-snippets/0.9.1/annotate_snippets/snippet/struct.Snippet.html
+    /// [format options]: https://docs.rs/annotate-snippets/0.9.1/annotate_snippets/display_list/struct.FormatOptions.html
+    #[cfg(feature = "annotate-snippets")]
+    fn fmt_as_annotate_snippets_with_opts(
+        &self,
+        opts: annotate_snippets::display_list::FormatOptions,
+    ) -> Result<String, std::io::Error> {
+        let result = annotate_snippets_impl::fmt_as_annotate_snippets(self, opts);
+        Ok(result)
+    }
+
     /// Format the error as an [Ariadne report].
     ///
-    /// [Ariadne report]: https://docs.rs/ariadne/latest/ariadne/struct.Report.html
+    /// [Ariadne report]: https://docs.rs/ariadne/0.6.0/ariadne/struct.Report.html
     #[cfg(feature = "ariadne")]
     fn fmt_as_ariadne_report(&self) -> Result<String, std::io::Error> {
         let mut result = Vec::new();
@@ -141,7 +168,7 @@ pub trait ErrorEnum: std::error::Error {
 
     /// Convert the error to a [Miette diagnostic].
     ///
-    /// [Miette diagnostic]: https://docs.rs/miette/latest/miette/trait.Diagnostic.html
+    /// [Miette diagnostic]: https://docs.rs/miette/7.6.0/miette/trait.Diagnostic.html
     #[cfg(feature = "miette")]
     fn as_miette_diagnostic(&self) -> impl miette::Diagnostic + '_ {
         miette_impl::Wrapper(self)
@@ -149,8 +176,8 @@ pub trait ErrorEnum: std::error::Error {
 
     /// Format the error as a [Miette diagnostic] with a [Miette handler].
     ///
-    /// [Miette diagnostic]: https://docs.rs/miette/latest/miette/trait.Diagnostic.html
-    /// [Miette Handler]: https://docs.rs/miette/latest/miette/trait.ReportHandler.html
+    /// [Miette diagnostic]: https://docs.rs/miette/7.6.0/miette/trait.Diagnostic.html
+    /// [Miette Handler]: https://docs.rs/miette/7.6.0/miette/trait.ReportHandler.html
     #[cfg(feature = "miette")]
     fn fmt_as_miette_diagnostic_with(&self, handler: &impl miette::ReportHandler) -> String
     where
