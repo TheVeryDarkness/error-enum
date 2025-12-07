@@ -63,9 +63,12 @@ impl LineIndexer {
     /// Create an [`LineIndexer`].
     pub fn new(s: &str) -> Box<Self> {
         let mut line_starts = Vec::new();
-        let slice = s.as_bytes();
+        let mut cur = 0usize;
+        let mut slice = s.as_bytes();
         while let Some(index) = find_newline_utf8(slice) {
-            line_starts.push(index.end());
+            line_starts.push(cur + index.end());
+            cur += index.end();
+            slice = &slice[index.end()..]
         }
         line_starts.push(s.len());
         let line_starts = line_starts.into_boxed_slice();
