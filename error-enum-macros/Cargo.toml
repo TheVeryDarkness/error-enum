@@ -23,7 +23,6 @@ error-enum.workspace = true
 
 chloro.workspace = true
 prettydiff.workspace = true
-rust-format.workspace = true
 
 [lints]
 workspace = true

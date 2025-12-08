@@ -1,12 +1,13 @@
-use std::{
-    io::Write,
-    process::{Command, Stdio},
-};
+#![expect(clippy::unwrap_used, clippy::panic)]
 
 use crate::ErrorEnum;
 use prettydiff::diff_lines;
 use proc_macro2::TokenStream;
 use quote::{quote, ToTokens};
+use std::{
+    io::Write,
+    process::{Command, Stdio},
+};
 
 #[track_caller]
 fn assert_eq_source(actual: &str, expected: &str) {

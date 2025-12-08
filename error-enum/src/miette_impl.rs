@@ -100,11 +100,11 @@ impl<S: Span + Send + Sync> SourceCode for SpanWrapper<S> {
         let (end_line, _) = index.line_col_at(start);
         // dbg!(start, end, start_line, start_column, end_line);
         let name = self.0.uri().to_string();
-        let data = self.0.source_text().as_ref()[start..end].as_bytes();
+        let data = &self.0.source_text().as_ref().as_bytes()[start..end];
         // dbg!(&name, data);
         Ok(Box::new(MietteSpanContents::new_named(
             name,
-            &data,
+            data,
             SourceSpan::new(start.into(), end - start),
             start_line,
             start_column,

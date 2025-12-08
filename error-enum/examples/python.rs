@@ -1,3 +1,4 @@
+#![allow(clippy::unwrap_used)]
 //! An example.
 
 use error_enum::{error_type, ErrorEnum, SimpleSpan};

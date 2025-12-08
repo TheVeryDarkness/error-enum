@@ -96,13 +96,10 @@ pub trait ErrorEnum: std::error::Error {
     /// [Ariadne report]: https://docs.rs/ariadne/0.6.0/ariadne/struct.Report.html
     #[cfg(feature = "ariadne")]
     fn fmt_as_ariadne_report(&self) -> Result<String, std::io::Error> {
-        let mut result = Vec::new();
-        ariadne_impl::to_ariadne_report(
+        ariadne_impl::fmt_as_ariadne_report(
             self,
-            &mut result,
             ariadne::Config::new().with_index_type(ariadne::IndexType::Byte),
-        )?;
-        Ok(String::from_utf8(result).unwrap())
+        )
     }
     /// Format the error as an [Ariadne report] with [Ariadne config].
     ///
@@ -113,9 +110,7 @@ pub trait ErrorEnum: std::error::Error {
         &self,
         config: ariadne::Config,
     ) -> Result<String, std::io::Error> {
-        let mut result = Vec::new();
-        ariadne_impl::to_ariadne_report(self, &mut result, config)?;
-        Ok(String::from_utf8(result).unwrap())
+        ariadne_impl::fmt_as_ariadne_report(self, config)
     }
     /// Format the error as an [Codespan diagnostic].
     ///

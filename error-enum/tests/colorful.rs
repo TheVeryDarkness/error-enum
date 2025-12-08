@@ -1,3 +1,6 @@
+#![expect(clippy::panic)]
+#![allow(clippy::unwrap_used)]
+
 //! Simple tests for error messages.
 use error_enum::{ErrorEnum, SimpleSpan};
 use error_enum_macros::error_type;
@@ -57,7 +60,7 @@ error_type! {
 fn basic() {
     let error = ColoredError::RedError(1, 2);
 
-    assert_eq!(error.code(), "E01");
+    assert_eq(error.code(), "E01");
 }
 
 #[test]

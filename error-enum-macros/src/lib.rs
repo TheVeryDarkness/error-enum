@@ -213,7 +213,6 @@ impl Config {
         let mut kind = self.kind;
         let mut number = self.number.clone();
         let mut msg = None;
-        let span_field = span_field;
         let mut label = self.label.clone();
         let depth = self.depth + 1;
         let mut nested = false;
@@ -399,12 +398,10 @@ impl TryFrom<DeriveInput> for ErrorEnum {
                     config,
                 })
             }
-            _ => {
-                return Err(Error::new_spanned(
-                    ident,
-                    "ErrorEnum can only be derived for enums.",
-                ))
-            }
+            _ => Err(Error::new_spanned(
+                ident,
+                "ErrorEnum can only be derived for enums.",
+            )),
         }
     }
 }

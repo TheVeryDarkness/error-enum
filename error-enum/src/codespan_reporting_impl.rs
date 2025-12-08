@@ -54,6 +54,6 @@ pub(crate) fn fmt_as_codespan_diagnostic<T: ErrorEnum + ?Sized>(
     let mut writer = StylesWriter::new(&mut buf, &styles);
     codespan_reporting::term::emit_to_write_style(&mut writer, &config, &files, &diagnostic)?;
 
-    Ok(String::from_utf8(buf.into_inner())
-        .map_err(|e| Error::Io(io::Error::new(io::ErrorKind::InvalidData, e)))?)
+    String::from_utf8(buf.into_inner())
+        .map_err(|e| Error::Io(io::Error::new(io::ErrorKind::InvalidData, e)))
 }

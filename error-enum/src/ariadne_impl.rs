@@ -93,3 +93,11 @@ pub(crate) fn to_ariadne_report<T: ErrorEnum + ?Sized>(
         .finish()
         .write(cache, buf)
 }
+pub(crate) fn fmt_as_ariadne_report<T: ErrorEnum + ?Sized>(
+    error: &T,
+    config: Config,
+) -> Result<String, io::Error> {
+    let mut result = Vec::new();
+    to_ariadne_report(error, &mut result, config)?;
+    String::from_utf8(result).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))
+}
