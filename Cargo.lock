@@ -216,6 +216,7 @@ dependencies = [
  "ariadne",
  "error-enum-macros",
  "miette",
+ "prettydiff",
  "stringzilla",
 ]
 

@@ -108,6 +108,12 @@ fn basic() {
                 fn primary_message(&self) -> ::std::string::String {
                     ::std::format!("{self}")
                 }
+                fn primary_label(&self) -> ::std::string::String {
+                    match self {
+                        #[allow(unused_variables)]
+                        Self::FileNotFound { path } => ::std::format!("{path} not found."),
+                    }
+                }
             }
         },
     );
@@ -175,6 +181,11 @@ fn deep() {
                 }
                 fn primary_message(&self) -> ::std::string::String {
                     ::std::format!("{self}")
+                }
+                fn primary_label(&self) -> ::std::string::String {
+                    match self {
+                        Self::AccessDenied => ::std::format!("无权限。"),
+                    }
                 }
             }
         },
@@ -244,6 +255,11 @@ fn nested() {
                 fn primary_message(&self) -> ::std::string::String {
                     ::std::format!("{self}")
                 }
+                fn primary_label(&self) -> ::std::string::String {
+                    match self {
+                        Self::FileError(_0) => ::std::format!("{0}", _0),
+                    }
+                }
             }
         },
     );
@@ -309,6 +325,11 @@ fn escaped_braces_in_msg() {
                 }
                 fn primary_message(&self) -> ::std::string::String {
                     ::std::format!("{self}")
+                }
+                fn primary_label(&self) -> ::std::string::String {
+                    match self {
+                        Self::FileNotFound(_0) => ::std::format!("{{0}} not found."),
+                    }
                 }
             }
         },

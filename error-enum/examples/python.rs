@@ -13,7 +13,8 @@ error_type! {
             #[diag(number = "0")]
             // You can use `#[diag(msg = "...")]` to specify the error message of the variant.
             #[diag(msg = "The token `{0}` is not formatted well.")]
-            Unformatted(
+            #[diag(label = "consider reformatting the token")]
+            MalformedToken(
                 String,
                 #[diag(span)]
                 SimpleSpan,
@@ -27,6 +28,7 @@ error_type! {
                 // so this error will have an error number "00".
                 #[diag(number = "0")]
                 #[diag(msg = "`{term}` is expected to be of type `{expected_ty}`, but is of type `{actual_ty}`.")]
+                #[diag(label = "the problematic term is here")]
                 TypeError {
                     /// The term.
                     term: String,

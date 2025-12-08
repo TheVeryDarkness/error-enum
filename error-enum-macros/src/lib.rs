@@ -1,4 +1,11 @@
 #![doc = include_str!("../../readme.md")]
+//! ## Syntax by Examples
+//!
+//! An example for `error_type`:
+//!
+//! ```rust
+#![doc = include_str!("../../error-enum/examples/python.rs")]
+//! ```
 
 use lazy_regex::{lazy_regex, Lazy, Regex};
 use proc_macro::TokenStream;
@@ -171,6 +178,7 @@ struct Config {
     ident: Option<Ident>,
     fields: Option<Fields>,
     span_field: Option<Ident>,
+    label: Option<LitStr>,
     depth: usize,
     #[expect(unused)]
     nested: bool,
@@ -188,6 +196,7 @@ impl Config {
             ident: None,
             fields: None,
             span_field: None,
+            label: None,
             depth: 0,
             nested: false,
             span,
@@ -205,6 +214,7 @@ impl Config {
         let mut number = self.number.clone();
         let mut msg = None;
         let span_field = span_field;
+        let mut label = self.label.clone();
         let depth = self.depth + 1;
         let mut nested = false;
         let mut unused_attrs = Vec::new();
@@ -221,6 +231,9 @@ impl Config {
                     } else if meta.path.is_ident("msg") {
                         let value: LitStr = meta.value()?.parse()?;
                         msg = Some(value);
+                    } else if meta.path.is_ident("label") {
+                        let value: LitStr = meta.value()?.parse()?;
+                        label = Some(value);
                     } else if meta.path.is_ident("nested") {
                         nested = true;
                     } else {
@@ -243,6 +256,7 @@ impl Config {
             ident,
             fields,
             span_field,
+            label,
             depth,
             nested,
             span,
@@ -469,6 +483,22 @@ impl ErrorEnum {
             })
             .collect()
     }
+    fn used_unnamed_fields(msg: &LitStr) -> Result<Vec<Ident>> {
+        static ARG: Lazy<Regex> = lazy_regex!(r#"(^|[^\{])(\{\{)*\{(?<index>\d+)(:[^\{\}]*)?\}"#);
+        ARG.captures_iter(msg.value().as_str())
+            .map(|cap| {
+                let index = cap
+                    .name("index")
+                    .ok_or_else(|| Error::new_spanned(msg, "Invalid argument index."))?
+                    .as_str()
+                    .parse::<usize>()
+                    .map_err(|err| {
+                        Error::new_spanned(msg, format!("Invalid argument index: {err}"))
+                    })?;
+                Ok(format_ident!("_{}", index))
+            })
+            .collect()
+    }
     fn display_branch(ident: &Ident, fields: &Fields, msg: &LitStr) -> Result<TokenStream2> {
         match fields {
             Fields::Named(named) => {
@@ -479,24 +509,8 @@ impl ErrorEnum {
                 })
             }
             Fields::Unnamed(unnamed) => {
-                static ARG: Lazy<Regex> =
-                    lazy_regex!(r#"(^|[^\{])(\{\{)*\{(?<index>\d+)(:[^\{\}]*)?\}"#);
                 let params = (0..unnamed.unnamed.len()).map(|i| format_ident!("_{}", i));
-                let args: Result<Vec<Ident>> = ARG
-                    .captures_iter(msg.value().as_str())
-                    .map(|cap| {
-                        let index = cap
-                            .name("index")
-                            .ok_or_else(|| Error::new_spanned(msg, "Invalid argument index."))?
-                            .as_str()
-                            .parse::<usize>()
-                            .map_err(|err| {
-                                Error::new_spanned(msg, format!("Invalid argument index: {err}"))
-                            })?;
-                        Ok(format_ident!("_{}", index))
-                    })
-                    .collect();
-                let args = args?;
+                let args = Self::used_unnamed_fields(msg)?;
                 Ok(quote! {
                     Self::#ident ( #(#params),* ) => ::core::write!(f, #msg #(, #args)* ),
                 })
@@ -526,6 +540,58 @@ impl ErrorEnum {
                     )
                 })?;
                 Self::display_branch(&ident, &fields, &msg)
+            })
+            .collect()
+    }
+    fn primary_label_branch(
+        ident: &Ident,
+        fields: &Fields,
+        label: &LitStr,
+    ) -> Result<TokenStream2> {
+        match fields {
+            Fields::Named(named) => {
+                let members = named.named.iter().map(|f| f.ident.as_ref());
+                Ok(quote! {
+                    #[allow(unused_variables)]
+                    Self::#ident { #(#members),* } => ::std::format!(#label),
+                })
+            }
+            Fields::Unnamed(unnamed) => {
+                let params = (0..unnamed.unnamed.len()).map(|i| format_ident!("_{}", i));
+                let args = Self::used_unnamed_fields(label)?;
+                Ok(quote! {
+                    Self::#ident ( #(#params),* ) => ::std::format!(#label #(, #args)* ),
+                })
+            }
+            Fields::Unit => Ok(quote! {
+                Self::#ident => ::std::format!(#label),
+            }),
+        }
+    }
+    fn primary_label(&self) -> Result<Vec<TokenStream2>> {
+        self.iter()?
+            .filter_map(|config| {
+                config
+                    .map(
+                        |Config {
+                             msg,
+                             ident,
+                             fields,
+                             label,
+                             ..
+                         }| { Some((msg, ident?, fields?, label)) },
+                    )
+                    .transpose()
+            })
+            .map(|config| {
+                let (msg, ident, fields, label) = config?;
+                let label = label.or(msg).ok_or_else(|| {
+                    Error::new_spanned(
+                        &ident,
+                        "Missing label or message. Consider using `#[diag(label = \"...\")]`",
+                    )
+                })?;
+                Self::primary_label_branch(&ident, &fields, &label)
             })
             .collect()
     }
@@ -646,6 +712,7 @@ impl ErrorEnum {
         });
 
         let (kind, number, code, primary_span) = self.impl_error_enum()?;
+        let primary_label = self.primary_label()?;
         tokens.extend(quote! {
             impl #impl_generics ::error_enum::ErrorEnum for #name #ty_generics #where_clause {
                 type Span = ::error_enum::SimpleSpan;
@@ -675,7 +742,9 @@ impl ErrorEnum {
                     ::std::format!("{self}")
                 }
                 fn primary_label(&self) -> ::std::string::String {
-                    ::std::format!("{self}")
+                    match self {
+                        #(#primary_label)*
+                    }
                 }
             }
         });
