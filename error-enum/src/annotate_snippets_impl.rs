@@ -18,6 +18,7 @@ pub(crate) fn fmt_as_annotate_snippets<T: ErrorEnum + ?Sized>(
     opt: FormatOptions,
 ) -> String {
     let primary_message = error.primary_message().to_string();
+    let primary_label = error.primary_label().to_string();
     let primary_span = error.primary_span();
     let kind = error.kind();
     let title = Annotation {
@@ -34,7 +35,7 @@ pub(crate) fn fmt_as_annotate_snippets<T: ErrorEnum + ?Sized>(
         origin: Some(&uri),
         annotations: [SourceAnnotation {
             range: (primary_span.range().start, primary_span.range().end),
-            label: &primary_message,
+            label: &primary_label,
             annotation_type: kind.into(),
         }]
         .into(),

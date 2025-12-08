@@ -58,10 +58,12 @@ pub trait ErrorEnum: std::error::Error {
     /// Normally the code is a combination of kind short string and number,
     /// like "E0", "W1", etc.
     fn code(&self) -> &str;
-    /// Get the primary span and message of the error.
+    /// Get the primary span of the error.
     fn primary_span(&self) -> Self::Span;
-    /// Get the primary span and message of the error.
+    /// Get the primary message of the error.
     fn primary_message(&self) -> Self::Message;
+    /// Get the primary label of the error.
+    fn primary_label(&self) -> Self::Message;
 
     /// Format the error as an [annotate snippet].
     ///
@@ -156,6 +158,9 @@ impl<T: ErrorEnum + ?Sized> ErrorEnum for &T {
     }
     fn primary_message(&self) -> Self::Message {
         (*self).primary_message()
+    }
+    fn primary_label(&self) -> Self::Message {
+        (*self).primary_label()
     }
 
     #[cfg(feature = "annotate-snippets")]

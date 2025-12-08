@@ -645,7 +645,7 @@ impl ErrorEnum {
             impl #impl_generics ::core::error::Error for #name #ty_generics #where_clause {}
         });
 
-        let (kind, number, code, primary) = self.impl_error_enum()?;
+        let (kind, number, code, primary_span) = self.impl_error_enum()?;
         tokens.extend(quote! {
             impl #impl_generics ::error_enum::ErrorEnum for #name #ty_generics #where_clause {
                 type Span = ::error_enum::SimpleSpan;
@@ -668,10 +668,13 @@ impl ErrorEnum {
                 }
                 fn primary_span(&self) -> ::error_enum::SimpleSpan {
                     match self {
-                        #(#primary)*
+                        #(#primary_span)*
                     }
                 }
                 fn primary_message(&self) -> ::std::string::String {
+                    ::std::format!("{self}")
+                }
+                fn primary_label(&self) -> ::std::string::String {
                     ::std::format!("{self}")
                 }
             }

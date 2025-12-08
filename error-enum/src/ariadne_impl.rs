@@ -88,7 +88,7 @@ pub(crate) fn to_ariadne_report<T: ErrorEnum + ?Sized>(
     Report::build(error.kind().into(), SpanWrapper(primary_span.clone()))
         .with_code(error.code())
         .with_message(primary_message)
-        .with_label(Label::new(SpanWrapper(primary_span)))
+        .with_label(Label::new(SpanWrapper(primary_span)).with_message(error.primary_label()))
         .with_config(config)
         .finish()
         .write(cache, buf)

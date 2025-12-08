@@ -50,7 +50,7 @@ impl<T: ErrorEnum + ?Sized, S: Span + Send + Sync> Diagnostic for Wrapper<'_, T,
     fn labels(&self) -> Option<Box<dyn Iterator<Item = miette::LabeledSpan> + '_>> {
         let primary_span = self.0.primary_span();
         let iter = [LabeledSpan::new_primary_with_span(
-            None,
+            Some(self.0.primary_label().to_string()),
             SourceSpan::new(
                 primary_span.start().into(),
                 primary_span.end() - primary_span.start(),
