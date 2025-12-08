@@ -14,9 +14,10 @@ members = ["error-enum", "error-enum-macros"]
 error-enum = { path = "error-enum", version = "0.4.1" }
 error-enum-macros = { path = "error-enum-macros", version = "0.4.1" }
 
-chloro = "0.7.5"
 annotate-snippets = { version = "0.9.1" }
 ariadne = { version = "0.6.0" }
+chloro = "0.7.5"
+codespan-reporting = "0.13.1"
 lazy-regex = "3.4.2"
 miette = { version = "7.6.0", default-features = false }
 mitsein = { version = "0.8.0", default-features = false }

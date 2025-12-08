@@ -19,6 +19,8 @@ mod span;
 mod annotate_snippets_impl;
 #[cfg(feature = "ariadne")]
 mod ariadne_impl;
+#[cfg(feature = "codespan-reporting")]
+mod codespan_reporting_impl;
 #[cfg(feature = "miette")]
 mod miette_impl;
 
@@ -102,7 +104,7 @@ pub trait ErrorEnum: std::error::Error {
         )?;
         Ok(String::from_utf8(result).unwrap())
     }
-    /// Format the error as an [Ariadne report] with [Ariadne config]
+    /// Format the error as an [Ariadne report] with [Ariadne config].
     ///
     /// [Ariadne report]: https://docs.rs/ariadne/0.6.0/ariadne/struct.Report.html
     /// [Ariadne config]: https://docs.rs/ariadne/0.6.0/ariadne/struct.Config.html
@@ -114,6 +116,34 @@ pub trait ErrorEnum: std::error::Error {
         let mut result = Vec::new();
         ariadne_impl::to_ariadne_report(self, &mut result, config)?;
         Ok(String::from_utf8(result).unwrap())
+    }
+    /// Format the error as an [Codespan diagnostic].
+    ///
+    /// [Codespan diagnostic]: https://docs.rs/codespan-reporting/0.13.1/codespan_reporting/diagnostic/struct.Diagnostic.html
+    /// [Codespan config]: https://docs.rs/codespan-reporting/0.13.1/codespan_reporting/term/config/struct.Config.html
+    #[cfg(feature = "codespan-reporting")]
+    fn as_codespan_diagnostic(
+        &self,
+    ) -> (
+        codespan_reporting::diagnostic::Diagnostic<usize>,
+        codespan_reporting::files::SimpleFiles<
+            <Self::Span as Span>::Uri,
+            <Self::Span as Span>::Source,
+        >,
+    ) {
+        codespan_reporting_impl::to_codespan_diagnostic(self)
+    }
+    /// Format the error as an [Codespan diagnostic] with [Codespan config].
+    ///
+    /// [Codespan diagnostic]: https://docs.rs/codespan-reporting/0.13.1/codespan_reporting/diagnostic/struct.Diagnostic.html
+    /// [Codespan config]: https://docs.rs/codespan-reporting/0.13.1/codespan_reporting/term/config/struct.Config.html
+    #[cfg(feature = "codespan-reporting")]
+    fn fmt_as_codespan_diagnostic_with(
+        &self,
+        config: codespan_reporting::term::Config,
+        styles: codespan_reporting::term::Styles,
+    ) -> Result<String, impl std::error::Error> {
+        codespan_reporting_impl::fmt_as_codespan_diagnostic(self, config, styles)
     }
 
     /// Convert the error to a [Miette diagnostic].

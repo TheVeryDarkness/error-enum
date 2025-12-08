@@ -84,6 +84,17 @@ fn main() {
         error.fmt_as_ariadne_report().unwrap()
     );
 
+    #[cfg(feature = "codespan-reporting")]
+    eprintln!(
+        "---------- codespan-reporting ----------\n{}",
+        error
+            .fmt_as_codespan_diagnostic_with(
+                codespan_reporting::term::Config::default(),
+                codespan_reporting::term::Styles::default()
+            )
+            .unwrap()
+    );
+
     #[cfg(feature = "miette")]
     eprintln!(
         "---------- miette (Narratable) ----------\n{}",
