@@ -4,7 +4,7 @@
 //! Simple tests for error messages.
 use error_enum::{ErrorEnum, SimpleSpan};
 use error_enum_macros::error_type;
-use prettydiff::{diff_chars, diff_lines};
+use prettydiff::diff_lines;
 
 #[track_caller]
 fn assert_eq(actual: &str, expected: &str) {
