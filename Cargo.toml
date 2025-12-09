@@ -14,6 +14,7 @@ members = ["error-enum", "error-enum-macros"]
 
 [workspace.dependencies]
 error-enum = { path = "error-enum", version = "0.4.1" }
+error-enum-core = { path = "error-enum-core", version = "0.4.1" }
 error-enum-macros = { path = "error-enum-macros", version = "0.4.1" }
 
 annotate-snippets = { version = "0.9.1" }

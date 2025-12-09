@@ -1,5 +1,5 @@
 [package]
-name = "error-enum"
+name = "error-enum-core"
 version.workspace = true
 edition.workspace = true
 readme.workspace = true
@@ -10,29 +10,17 @@ repository.workspace = true
 categories.workspace = true
 
 [features]
-default = ["derive"]
-
-derive = ["error-enum-macros"]
-
 annotate-snippets = ["dep:annotate-snippets"]
 ariadne = ["dep:ariadne"]
 codespan-reporting = ["dep:codespan-reporting"]
 miette = ["dep:miette"]
 
 [dependencies]
-error-enum-macros = { workspace = true, optional = true }
-error-enum-core = { workspace = true }
-
 annotate-snippets = { workspace = true, optional = true }
 ariadne = { workspace = true, optional = true }
 codespan-reporting = { workspace = true, optional = true }
 miette = { workspace = true, optional = true }
-
-[dev-dependencies]
-annotate-snippets = { version = "0.9.1", features = ["color", "yansi-term"] }
-ariadne.workspace = true
-miette = { version = "7.6.0", default-features = false, features = ["fancy"] }
-prettydiff.workspace = true
+stringzilla.workspace = true
 
 [lints]
 workspace = true

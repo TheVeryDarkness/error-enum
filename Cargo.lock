@@ -147,9 +147,20 @@ dependencies = [
  "annotate-snippets",
  "ariadne",
  "codespan-reporting",
+ "error-enum-core",
  "error-enum-macros",
  "miette",
  "prettydiff",
+]
+
+[[package]]
+name = "error-enum-core"
+version = "0.4.1"
+dependencies = [
+ "annotate-snippets",
+ "ariadne",
+ "codespan-reporting",
+ "miette",
  "stringzilla",
 ]
 
