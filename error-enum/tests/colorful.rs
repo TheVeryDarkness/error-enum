@@ -4,7 +4,7 @@
 //! Simple tests for error messages.
 use error_enum::{ErrorEnum, SimpleSpan};
 use error_enum_macros::error_type;
-use prettydiff::diff_lines;
+use prettydiff::{diff_chars, diff_lines};
 
 #[track_caller]
 fn assert_eq(actual: &str, expected: &str) {
@@ -12,7 +12,7 @@ fn assert_eq(actual: &str, expected: &str) {
         let diff = diff_lines(expected, actual);
         panic!(
             "---------- Source DIFF ----------\n{}\n--------- ACTUAL CODE ----------\n{}",
-            diff, actual
+            diff, actual,
         );
     }
 }
@@ -64,6 +64,48 @@ fn basic() {
 }
 
 #[test]
+#[cfg(feature = "annotate-snippets")]
+fn annotate_snippets() {
+    use annotate_snippets::display_list::FormatOptions;
+
+    let error = ColoredError::RedError(1, 2);
+
+    {
+        let s = error
+            .fmt_as_annotate_snippets_with_opts(FormatOptions::default())
+            .unwrap();
+        assert_eq(
+            &s,
+            "\
+error[E01]: 1 and 2 is not red.
+--> :1:1
+ |
+ |",
+        );
+    }
+
+    let error = ColoredError::WhiteError {
+        white: "white".into(),
+        span: SimpleSpan::new("foo.rs", "use white;", 4, 9),
+    };
+    {
+        let s = error
+            .fmt_as_annotate_snippets_with_opts(FormatOptions::default())
+            .unwrap();
+        assert_eq(
+            &s,
+            "\
+error[E05]: All in white.
+ --> foo.rs:1:5
+  |
+1 | use white;
+  |     ^^^^^ check the color here
+  |",
+        );
+    }
+}
+
+#[test]
 #[cfg(feature = "ariadne")]
 fn ariadne() {
     use ariadne::Config;
@@ -105,6 +147,52 @@ fn ariadne() {
    │     ──┬──  
    │       ╰──── check the color here
 ───╯
+",
+        );
+    }
+}
+
+#[test]
+#[cfg(feature = "codespan-reporting")]
+fn codespan_reporting() {
+    use codespan_reporting::term::Config;
+
+    let config = Config::default();
+
+    let error = ColoredError::RedError(1, 2);
+
+    {
+        let s = error
+            .fmt_as_codespan_diagnostic_with(config.clone(), None)
+            .unwrap();
+        assert_eq(
+            &s,
+            "\
+error[E01]: 1 and 2 is not red.
+  ┌─ :1:1
+  │
+1 │ 
+  │ ^ 1 and 2 is not red.
+
+",
+        );
+    }
+
+    let error = ColoredError::WhiteError {
+        white: "white".into(),
+        span: SimpleSpan::new("foo.rs", "use white;", 4, 9),
+    };
+    {
+        let s = error.fmt_as_codespan_diagnostic_with(config, None).unwrap();
+        assert_eq(
+            &s,
+            "\
+error[E05]: All in white.
+  ┌─ foo.rs:1:5
+  │
+1 │ use white;
+  │     ^^^^^ check the color here
+
 ",
         );
     }

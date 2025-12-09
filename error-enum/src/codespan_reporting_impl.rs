@@ -47,13 +47,21 @@ pub(crate) fn to_codespan_diagnostic<T: ErrorEnum + ?Sized>(
 pub(crate) fn fmt_as_codespan_diagnostic<T: ErrorEnum + ?Sized>(
     value: &T,
     config: Config,
-    styles: Styles,
+    styles: Option<&Styles>,
 ) -> Result<String, Error> {
     let (diagnostic, files) = to_codespan_diagnostic(value);
-    let mut buf = Buffer::ansi();
-    let mut writer = StylesWriter::new(&mut buf, &styles);
-    codespan_reporting::term::emit_to_write_style(&mut writer, &config, &files, &diagnostic)?;
 
-    String::from_utf8(buf.into_inner())
-        .map_err(|e| Error::Io(io::Error::new(io::ErrorKind::InvalidData, e)))
+    if let Some(styles) = styles {
+        let mut buf = Buffer::ansi();
+        let mut writer = StylesWriter::new(&mut buf, &styles);
+        codespan_reporting::term::emit_to_write_style(&mut writer, &config, &files, &diagnostic)?;
+
+        String::from_utf8(buf.into_inner())
+            .map_err(|e| Error::Io(io::Error::new(io::ErrorKind::InvalidData, e)))
+    } else {
+        let mut buf = String::new();
+        codespan_reporting::term::emit_to_string(&mut buf, &config, &files, &diagnostic)?;
+
+        Ok(buf)
+    }
 }

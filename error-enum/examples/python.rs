@@ -91,7 +91,7 @@ fn main() {
         error
             .fmt_as_codespan_diagnostic_with(
                 codespan_reporting::term::Config::default(),
-                codespan_reporting::term::Styles::default()
+                Some(&codespan_reporting::term::Styles::default())
             )
             .unwrap()
     );

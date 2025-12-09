@@ -133,7 +133,7 @@ pub trait ErrorEnum: std::error::Error {
     fn fmt_as_codespan_diagnostic_with(
         &self,
         config: codespan_reporting::term::Config,
-        styles: codespan_reporting::term::Styles,
+        styles: Option<&codespan_reporting::term::Styles>,
     ) -> Result<String, impl std::error::Error> {
         codespan_reporting_impl::fmt_as_codespan_diagnostic(self, config, styles)
     }
