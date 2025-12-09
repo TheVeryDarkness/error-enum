@@ -22,7 +22,6 @@ lazy-regex.workspace = true
 [dev-dependencies]
 error-enum.workspace = true
 
-chloro.workspace = true
 prettydiff.workspace = true
 
 [lints]
