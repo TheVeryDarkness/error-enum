@@ -1,6 +1,10 @@
-#![doc = include_str!("../../readme.md")]
+//! # `error-enum-core`
 //!
-//! Please refer to the documentation of [`error-enum`](https://docs.rs/error-enum/) crate for more details.
+//! A core crate for [`error-enum`](https://crates.io/crates/error-enum) providing
+//! traits and implementations for error enums with rich diagnostics support.
+//!
+//! Please refer to [`error-enum`](https://crates.io/crates/error-enum) and
+//! [`its documentation`](https://docs.rs/error-enum/) for more details.
 
 pub use indexer::{Indexer, LineIndexer};
 pub use span::{SimpleSpan, Span};

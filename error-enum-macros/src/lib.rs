@@ -1,6 +1,10 @@
-#![doc = include_str!("../../readme.md")]
+//! # `error-enum-macros`
 //!
-//! Please refer to the documentation of [`error-enum`](https://docs.rs/error-enum/) crate for more details.
+//! A procedural macro crate for [`error-enum`](https://crates.io/crates/error-enum) to define error enums
+//! with rich diagnostics support.
+//!
+//! Please refer to [`error-enum`](https://crates.io/crates/error-enum) and
+//! [`its documentation`](https://docs.rs/error-enum/) for more details.
 
 use lazy_regex::{lazy_regex, Lazy, Regex};
 use proc_macro::TokenStream;
