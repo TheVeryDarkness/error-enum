@@ -168,7 +168,6 @@ dependencies = [
 name = "error-enum-macros"
 version = "1.0.0-alpha.0"
 dependencies = [
- "error-enum",
  "lazy-regex",
  "prettydiff",
  "proc-macro2",

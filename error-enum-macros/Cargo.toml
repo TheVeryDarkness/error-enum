@@ -21,8 +21,6 @@ proc-macro2.workspace = true
 lazy-regex.workspace = true
 
 [dev-dependencies]
-error-enum.workspace = true
-
 prettydiff.workspace = true
 
 [lints]

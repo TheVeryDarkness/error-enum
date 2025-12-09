@@ -1,7 +1,6 @@
 //! Example of defining file system related errors and warnings with [`error_type!`] macro.
 
-use error_enum::ErrorEnum;
-use error_enum_macros::error_type;
+use error_enum::{error_type, ErrorEnum};
 use std::path::PathBuf;
 
 error_type! {
