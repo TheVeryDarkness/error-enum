@@ -6,6 +6,7 @@ readme.workspace = true
 keywords.workspace = true
 description.workspace = true
 license.workspace = true
+repository.workspace = true
 
 [features]
 annotate-snippets = ["dep:annotate-snippets"]
