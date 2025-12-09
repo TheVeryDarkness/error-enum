@@ -6,6 +6,7 @@ keywords = ["error", "derive", "enum", "tree"]
 description = "Provide a easy way to define an enum that represents errors with error codes, document comments and several other functionalities."
 license = "MIT/Apache-2.0"
 repository = "https://github.com/TheVeryDarkness/error-enum"
+categories = ["development-tools"]
 
 [workspace]
 resolver = "3"
