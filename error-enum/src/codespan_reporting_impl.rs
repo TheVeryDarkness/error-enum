@@ -53,7 +53,7 @@ pub(crate) fn fmt_as_codespan_diagnostic<T: ErrorEnum + ?Sized>(
 
     if let Some(styles) = styles {
         let mut buf = Buffer::ansi();
-        let mut writer = StylesWriter::new(&mut buf, &styles);
+        let mut writer = StylesWriter::new(&mut buf, styles);
         codespan_reporting::term::emit_to_write_style(&mut writer, &config, &files, &diagnostic)?;
 
         String::from_utf8(buf.into_inner())
