@@ -4,7 +4,7 @@
 //! An example for `error_type`:
 //!
 //! ```rust
-#![doc = include_str!("../../error-enum/examples/python.rs")]
+#![doc = include_str!("../examples/python.rs")]
 //! ```
 
 pub use error_enum_core::{ErrorEnum, Kind, SimpleSpan, Span};
