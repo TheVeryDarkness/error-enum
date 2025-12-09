@@ -24,6 +24,12 @@ use syn::{
 #[cfg(test)]
 mod tests;
 
+/// A tuple type with 4 identical types.
+///
+/// For `impl_error_enum_branch` and `impl_error_enum`,
+/// it means `(kind, number, code, primary_span)`.
+type Tuple4<T> = (T, T, T, T);
+
 fn split_fields_attrs(fields: &mut Fields) -> Result<Option<Ident>> {
     let mut span_ident = None;
     for (idx, field) in fields.iter_mut().enumerate() {
@@ -598,7 +604,7 @@ impl ErrorEnum {
         span_field: Option<Ident>,
         kind: &Kind,
         number: &str,
-    ) -> Result<(TokenStream2, TokenStream2, TokenStream2, TokenStream2)> {
+    ) -> Result<Tuple4<TokenStream2>> {
         let branch_ignored = match fields {
             Fields::Named(_) => quote! { { .. } },
             Fields::Unnamed(_) => quote! { (..) },
@@ -641,14 +647,7 @@ impl ErrorEnum {
         };
         Ok((kind, number, code, primary_span))
     }
-    fn impl_error_enum(
-        &self,
-    ) -> Result<(
-        Vec<TokenStream2>,
-        Vec<TokenStream2>,
-        Vec<TokenStream2>,
-        Vec<TokenStream2>,
-    )> {
+    fn impl_error_enum(&self) -> Result<Tuple4<Vec<TokenStream2>>> {
         self.iter()?
             .filter_map(|config| {
                 config
