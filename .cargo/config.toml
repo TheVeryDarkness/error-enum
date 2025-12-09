@@ -1,5 +1,6 @@
 [alias]
 cov = "llvm-cov --all-features --html"
+tests = "test --all-features --workspace"
 
 [env]
 RUST_BACKTRACE = "1"
