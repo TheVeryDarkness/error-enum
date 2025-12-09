@@ -1,11 +1,6 @@
 #![doc = include_str!("../../readme.md")]
-//! ## Syntax by Examples
 //!
-//! An example for `error_type`:
-//!
-//! ```rust
-#![doc = include_str!("../../error-enum/examples/python.rs")]
-//! ```
+//! Please refer to the documentation of [`error-enum`](https://docs.rs/error-enum/) crate for more details.
 
 use lazy_regex::{lazy_regex, Lazy, Regex};
 use proc_macro::TokenStream;
