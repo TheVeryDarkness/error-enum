@@ -121,10 +121,7 @@ pub trait ErrorEnum: std::error::Error {
         &self,
     ) -> (
         codespan_reporting::diagnostic::Diagnostic<usize>,
-        codespan_reporting::files::SimpleFiles<
-            <Self::Span as Span>::Uri,
-            <Self::Span as Span>::Source,
-        >,
+        codespan_reporting_impl::Files<Self>,
     ) {
         codespan_reporting_impl::to_codespan_diagnostic(self)
     }

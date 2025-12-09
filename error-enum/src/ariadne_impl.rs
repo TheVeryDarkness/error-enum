@@ -27,11 +27,13 @@ impl<T: Span> ariadne::Span for SpanWrapper<T> {
     }
 }
 
+type SourceEntry<T> = (
+    <<T as ErrorEnum>::Span as Span>::Uri,
+    ariadne::Source<<<T as ErrorEnum>::Span as Span>::Source>,
+);
+
 struct Cache<T: ErrorEnum + ?Sized> {
-    sources: Vec<(
-        <T::Span as Span>::Uri,
-        ariadne::Source<<T::Span as Span>::Source>,
-    )>,
+    sources: Vec<SourceEntry<T>>,
 }
 
 impl<T: ErrorEnum + ?Sized> FromIterator<T::Span> for Cache<T> {

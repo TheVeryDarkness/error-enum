@@ -15,12 +15,12 @@ impl From<Kind> for Severity {
     }
 }
 
+pub(crate) type Files<T> =
+    SimpleFiles<<<T as ErrorEnum>::Span as Span>::Uri, <<T as ErrorEnum>::Span as Span>::Source>;
+
 pub(crate) fn to_codespan_diagnostic<T: ErrorEnum + ?Sized>(
     value: &T,
-) -> (
-    Diagnostic<usize>,
-    SimpleFiles<<T::Span as Span>::Uri, <T::Span as Span>::Source>,
-) {
+) -> (Diagnostic<usize>, Files<T>) {
     let diagnostic = Diagnostic {
         severity: value.kind().into(),
         code: Some(value.code().into()),

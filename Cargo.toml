@@ -41,6 +41,7 @@ unescaped_backticks = "deny"
 
 [workspace.lints.clippy]
 expect_used = "deny"
+needless_doctest_main = "allow"
 panic = "deny"
 todo = "deny"
 unwrap_in_result = "deny"
