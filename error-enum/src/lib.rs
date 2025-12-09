@@ -14,5 +14,4 @@
 //! ```
 
 pub use error_enum_core::{ErrorEnum, Kind, SimpleSpan, Span};
-#[cfg(feature = "derive")]
 pub use error_enum_macros::{error_type, ErrorType};

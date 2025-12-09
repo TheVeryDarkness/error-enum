@@ -10,17 +10,13 @@ repository.workspace = true
 categories.workspace = true
 
 [features]
-default = ["derive"]
-
-derive = ["error-enum-macros"]
-
 annotate-snippets = ["dep:annotate-snippets"]
 ariadne = ["dep:ariadne"]
 codespan-reporting = ["dep:codespan-reporting"]
 miette = ["dep:miette"]
 
 [dependencies]
-error-enum-macros = { workspace = true, optional = true }
+error-enum-macros = { workspace = true }
 error-enum-core = { workspace = true }
 
 annotate-snippets = { workspace = true, optional = true }

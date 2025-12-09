@@ -1,9 +1,9 @@
+//! Simple tests for error messages.
+
 #![expect(clippy::panic)]
 #![allow(clippy::unwrap_used)]
 
-//! Simple tests for error messages.
-use error_enum::{ErrorEnum, SimpleSpan};
-use error_enum_macros::error_type;
+use error_enum::{error_type, ErrorEnum, SimpleSpan};
 use prettydiff::diff_lines;
 
 #[track_caller]
