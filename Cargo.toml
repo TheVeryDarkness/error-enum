@@ -30,6 +30,7 @@ syn = { version = "2", features = ["full"] }
 [workspace.lints.rust]
 missing_docs = "deny"
 private_interfaces = "deny"
+# unused_crate_dependencies = "warn"
 
 [workspace.lints.rustdoc]
 bare_urls = "deny"
@@ -40,6 +41,7 @@ invalid_rust_codeblocks = "deny"
 unescaped_backticks = "deny"
 
 [workspace.lints.clippy]
+cargo = { level = "deny", priority = 1 }
 expect_used = "deny"
 needless_doctest_main = "allow"
 panic = "deny"
