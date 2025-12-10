@@ -1,6 +1,6 @@
 //! Example of defining file system related errors and warnings with [`error_type!`] macro.
 
-use error_enum::{error_type, ErrorEnum};
+use error_enum::{error_type, ErrorType};
 use std::path::PathBuf;
 
 error_type! {
@@ -50,7 +50,7 @@ error_type! {
 #[track_caller]
 fn test_error(err: &FileSystemError, expected: &str, code: &str)
 where
-    FileSystemError: ErrorEnum,
+    FileSystemError: ErrorType,
 {
     let msg = err.to_string();
     assert_eq!(msg, expected, "Got message: {}", msg);

@@ -1,4 +1,4 @@
-use crate::{ErrorEnum, Kind, Span};
+use crate::{ErrorType, Kind, Span};
 use ariadne::{Config, Label, Report, ReportKind};
 use std::io;
 
@@ -28,15 +28,15 @@ impl<T: Span> ariadne::Span for SpanWrapper<T> {
 }
 
 type SourceEntry<T> = (
-    <<T as ErrorEnum>::Span as Span>::Uri,
-    ariadne::Source<<<T as ErrorEnum>::Span as Span>::Source>,
+    <<T as ErrorType>::Span as Span>::Uri,
+    ariadne::Source<<<T as ErrorType>::Span as Span>::Source>,
 );
 
-struct Cache<T: ErrorEnum + ?Sized> {
+struct Cache<T: ErrorType + ?Sized> {
     sources: Vec<SourceEntry<T>>,
 }
 
-impl<T: ErrorEnum + ?Sized> FromIterator<T::Span> for Cache<T> {
+impl<T: ErrorType + ?Sized> FromIterator<T::Span> for Cache<T> {
     fn from_iter<I: IntoIterator<Item = T::Span>>(iter: I) -> Self {
         let sources = iter
             .into_iter()
@@ -56,7 +56,7 @@ impl<T: ErrorEnum + ?Sized> FromIterator<T::Span> for Cache<T> {
     }
 }
 
-impl<T: ErrorEnum + ?Sized> ariadne::Cache<<T::Span as Span>::Uri> for Cache<T> {
+impl<T: ErrorType + ?Sized> ariadne::Cache<<T::Span as Span>::Uri> for Cache<T> {
     type Storage = <T::Span as Span>::Source;
 
     fn fetch(
@@ -79,7 +79,7 @@ impl<T: ErrorEnum + ?Sized> ariadne::Cache<<T::Span as Span>::Uri> for Cache<T> 
     }
 }
 
-pub(crate) fn to_ariadne_report<T: ErrorEnum + ?Sized>(
+pub(crate) fn to_ariadne_report<T: ErrorType + ?Sized>(
     error: &T,
     buf: &mut impl io::Write,
     config: Config,
@@ -95,7 +95,7 @@ pub(crate) fn to_ariadne_report<T: ErrorEnum + ?Sized>(
         .finish()
         .write(cache, buf)
 }
-pub(crate) fn fmt_as_ariadne_report<T: ErrorEnum + ?Sized>(
+pub(crate) fn fmt_as_ariadne_report<T: ErrorType + ?Sized>(
     error: &T,
     config: Config,
 ) -> Result<String, io::Error> {

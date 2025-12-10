@@ -1,4 +1,4 @@
-use crate::{ErrorEnum, Kind, Span};
+use crate::{ErrorType, Kind, Span};
 use annotate_snippets::{
     display_list::{DisplayList, FormatOptions},
     snippet::{Annotation, AnnotationType, Slice, Snippet, SourceAnnotation},
@@ -13,7 +13,7 @@ impl From<Kind> for AnnotationType {
     }
 }
 
-pub(crate) fn fmt_as_annotate_snippets<T: ErrorEnum + ?Sized>(
+pub(crate) fn fmt_as_annotate_snippets<T: ErrorType + ?Sized>(
     error: &T,
     opt: FormatOptions,
 ) -> String {

@@ -1,4 +1,4 @@
-use crate::{ErrorEnum, Kind, Span};
+use crate::{ErrorType, Kind, Span};
 use codespan_reporting::{
     diagnostic::{Diagnostic, Label, LabelStyle, Severity},
     files::{Error, SimpleFiles},
@@ -16,9 +16,9 @@ impl From<Kind> for Severity {
 }
 
 pub(crate) type Files<T> =
-    SimpleFiles<<<T as ErrorEnum>::Span as Span>::Uri, <<T as ErrorEnum>::Span as Span>::Source>;
+    SimpleFiles<<<T as ErrorType>::Span as Span>::Uri, <<T as ErrorType>::Span as Span>::Source>;
 
-pub(crate) fn to_codespan_diagnostic<T: ErrorEnum + ?Sized>(
+pub(crate) fn to_codespan_diagnostic<T: ErrorType + ?Sized>(
     value: &T,
 ) -> (Diagnostic<usize>, Files<T>) {
     let diagnostic = Diagnostic {
@@ -44,7 +44,7 @@ pub(crate) fn to_codespan_diagnostic<T: ErrorEnum + ?Sized>(
     (diagnostic, files)
 }
 
-pub(crate) fn fmt_as_codespan_diagnostic<T: ErrorEnum + ?Sized>(
+pub(crate) fn fmt_as_codespan_diagnostic<T: ErrorType + ?Sized>(
     value: &T,
     config: Config,
     styles: Option<&Styles>,

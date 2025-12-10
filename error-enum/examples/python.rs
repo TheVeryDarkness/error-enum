@@ -1,7 +1,7 @@
 #![allow(clippy::unwrap_used)]
 //! An example.
 
-use error_enum::{error_type, ErrorEnum, SimpleSpan};
+use error_enum::{error_type, ErrorType, SimpleSpan};
 
 error_type! {
     /// Defined error type, will be generated as an `enum`.

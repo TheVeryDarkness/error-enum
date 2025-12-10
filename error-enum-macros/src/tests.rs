@@ -90,7 +90,7 @@ fn basic() {
                 }
             }
             impl ::core::error::Error for FileSystemError {}
-            impl ::error_enum::ErrorEnum for FileSystemError {
+            impl ::error_enum::ErrorType for FileSystemError {
                 type Span = ::error_enum::SimpleSpan;
                 type Message = ::std::string::String;
                 fn kind(&self) -> ::error_enum::Kind {
@@ -167,7 +167,7 @@ fn deep() {
                 }
             }
             impl ::core::error::Error for FileSystemError {}
-            impl ::error_enum::ErrorEnum for FileSystemError {
+            impl ::error_enum::ErrorType for FileSystemError {
                 type Span = ::error_enum::SimpleSpan;
                 type Message = ::std::string::String;
                 fn kind(&self) -> ::error_enum::Kind {
@@ -237,7 +237,7 @@ fn nested() {
                 }
             }
             impl ::core::error::Error for FileSystemError {}
-            impl ::error_enum::ErrorEnum for FileSystemError {
+            impl ::error_enum::ErrorType for FileSystemError {
                 type Span = ::error_enum::SimpleSpan;
                 type Message = ::std::string::String;
                 fn kind(&self) -> ::error_enum::Kind {
@@ -309,7 +309,7 @@ fn escaped_braces_in_msg() {
                 }
             }
             impl ::core::error::Error for FileSystemError {}
-            impl ::error_enum::ErrorEnum for FileSystemError {
+            impl ::error_enum::ErrorType for FileSystemError {
                 type Span = ::error_enum::SimpleSpan;
                 type Message = ::std::string::String;
                 fn kind(&self) -> ::error_enum::Kind {
@@ -372,7 +372,7 @@ fn test_error_type_with_derive_input() {
                 }
             }
             impl ::core::error::Error for ReadIntError {}
-            impl ::error_enum::ErrorEnum for ReadIntError {
+            impl ::error_enum::ErrorType for ReadIntError {
                 type Span = ::error_enum::SimpleSpan;
                 type Message = ::std::string::String;
                 fn kind(&self) -> ::error_enum::Kind {
@@ -432,7 +432,7 @@ fn test_error_type_with_derive_input() {
                 }
             }
             impl ::core::error::Error for ReadIntError {}
-            impl ::error_enum::ErrorEnum for ReadIntError {
+            impl ::error_enum::ErrorType for ReadIntError {
                 type Span = ::error_enum::SimpleSpan;
                 type Message = ::std::string::String;
                 fn kind(&self) -> ::error_enum::Kind {

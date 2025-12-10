@@ -1,4 +1,4 @@
-use crate::{ErrorEnum, Indexer, Kind, Span};
+use crate::{ErrorType, Indexer, Kind, Span};
 use miette::{
     Diagnostic, LabeledSpan, MietteError, MietteSpanContents, ReportHandler, Severity, SourceCode,
     SourceSpan, SpanContents,
@@ -7,31 +7,31 @@ use std::{error::Error, fmt};
 
 pub(crate) struct Wrapper<'a, T: ?Sized, S>(&'a T, SpanWrapper<S>);
 
-impl<'a, T: ErrorEnum<Span = S> + ?Sized, S: Span> Wrapper<'a, T, S> {
+impl<'a, T: ErrorType<Span = S> + ?Sized, S: Span> Wrapper<'a, T, S> {
     pub(crate) fn new(value: &'a T) -> Self {
         Self(value, SpanWrapper(value.primary_span()))
     }
 }
 
-impl<T: ErrorEnum + 'static, S: Span + Send + Sync> Wrapper<'_, T, S> {
+impl<T: ErrorType + 'static, S: Span + Send + Sync> Wrapper<'_, T, S> {
     pub(crate) fn fmt_with(&self, handler: &impl ReportHandler) -> String {
         WrapperWithHandler(self, handler).to_string()
     }
 }
 
-impl<T: ErrorEnum + ?Sized, S> fmt::Debug for Wrapper<'_, T, S> {
+impl<T: ErrorType + ?Sized, S> fmt::Debug for Wrapper<'_, T, S> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.0.primary_message())
     }
 }
-impl<T: ErrorEnum + ?Sized, S> fmt::Display for Wrapper<'_, T, S> {
+impl<T: ErrorType + ?Sized, S> fmt::Display for Wrapper<'_, T, S> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.0.primary_message())
     }
 }
-impl<T: ErrorEnum + ?Sized, S> Error for Wrapper<'_, T, S> {}
+impl<T: ErrorType + ?Sized, S> Error for Wrapper<'_, T, S> {}
 
-impl<T: ErrorEnum + ?Sized, S: Span + Send + Sync> Diagnostic for Wrapper<'_, T, S> {
+impl<T: ErrorType + ?Sized, S: Span + Send + Sync> Diagnostic for Wrapper<'_, T, S> {
     fn code<'a>(&'a self) -> Option<Box<dyn fmt::Display + 'a>> {
         Some(Box::new(self.0.code()))
     }
@@ -63,7 +63,7 @@ impl<T: ErrorEnum + ?Sized, S: Span + Send + Sync> Diagnostic for Wrapper<'_, T,
 
 struct WrapperWithHandler<'a, T, S, H: ?Sized>(&'a Wrapper<'a, T, S>, &'a H);
 
-impl<T: ErrorEnum + 'static, S: Span + Send + Sync, H: ReportHandler + ?Sized> fmt::Display
+impl<T: ErrorType + 'static, S: Span + Send + Sync, H: ReportHandler + ?Sized> fmt::Display
     for WrapperWithHandler<'_, T, S, H>
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

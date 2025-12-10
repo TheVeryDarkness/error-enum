@@ -809,7 +809,7 @@ impl ErrorEnum {
         let (kind, number, code, primary_span) = self.impl_error_enum()?;
         let primary_label = self.primary_label()?;
         tokens.extend(quote! {
-            impl #impl_generics ::error_enum::ErrorEnum for #name #ty_generics #where_clause {
+            impl #impl_generics ::error_enum::ErrorType for #name #ty_generics #where_clause {
                 type Span = ::error_enum::SimpleSpan;
                 type Message = ::std::string::String;
 
