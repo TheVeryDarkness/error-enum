@@ -56,6 +56,7 @@ macro_rules! impl_indexable {
     };
 }
 
+impl_indexable!(&T);
 impl_indexable!(Box<T>);
 impl_indexable!(Rc<T>);
 impl_indexable!(Arc<T>);
