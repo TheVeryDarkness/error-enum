@@ -178,21 +178,27 @@ impl<T: ErrorType + ?Sized> ErrorType for &T {
     type Span = T::Span;
     type Message = T::Message;
 
+    #[inline]
     fn kind(&self) -> Kind {
         (*self).kind()
     }
+    #[inline]
     fn number(&self) -> &str {
         (*self).number()
     }
+    #[inline]
     fn code(&self) -> &str {
         (*self).code()
     }
+    #[inline]
     fn primary_span(&self) -> Self::Span {
         (*self).primary_span()
     }
+    #[inline]
     fn primary_message(&self) -> Self::Message {
         (*self).primary_message()
     }
+    #[inline]
     fn primary_label(&self) -> Self::Message {
         (*self).primary_label()
     }
