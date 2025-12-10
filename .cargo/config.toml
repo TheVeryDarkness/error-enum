@@ -1,6 +1,7 @@
 [alias]
 cov = "llvm-cov --all-features --html"
 tests = "test --all-features --workspace"
+lints = "clippy --all-features --workspace -- -D warnings"
 
 [env]
 RUST_BACKTRACE = "1"
