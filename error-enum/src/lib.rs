@@ -19,5 +19,5 @@
 #![doc = include_str!("../examples/wrapper.rs")]
 //! ```
 
-pub use error_enum_core::{ErrorType, Kind, SimpleSpan, Span};
+pub use error_enum_core::{ErrorType, Indexer, Kind, LineIndexer, SimpleSpan, Span};
 pub use error_enum_macros::{error_type, ErrorType};
