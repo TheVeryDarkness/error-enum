@@ -5,6 +5,7 @@
 //!
 //! Please refer to [`error-enum`](https://crates.io/crates/error-enum) and
 //! [`its documentation`](https://docs.rs/error-enum/) for more details.
+#![warn(unused_crate_dependencies)]
 
 pub use indexer::{Indexer, LineIndexer};
 pub use span::{SimpleSpan, Span};

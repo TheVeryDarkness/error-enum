@@ -10,23 +10,21 @@ repository.workspace = true
 categories.workspace = true
 
 [features]
-annotate-snippets = ["dep:annotate-snippets"]
-ariadne = ["dep:ariadne"]
-codespan-reporting = ["dep:codespan-reporting"]
-miette = ["dep:miette"]
+annotate-snippets = ["error-enum-core/annotate-snippets"]
+ariadne = ["error-enum-core/ariadne"]
+codespan-reporting = ["error-enum-core/codespan-reporting"]
+miette = ["error-enum-core/miette"]
 
 [dependencies]
 error-enum-macros = { workspace = true }
 error-enum-core = { workspace = true }
 
-annotate-snippets = { workspace = true, optional = true }
-ariadne = { workspace = true, optional = true }
-codespan-reporting = { workspace = true, optional = true }
-miette = { workspace = true, optional = true }
-
 [dev-dependencies]
 annotate-snippets = { version = "0.9.1", features = ["color", "yansi-term"] }
 ariadne.workspace = true
+codespan-reporting = { version = "0.13.1", default-features = false, features = [
+    "termcolor",
+] }
 miette = { version = "7.6.0", default-features = false, features = ["fancy"] }
 prettydiff.workspace = true
 

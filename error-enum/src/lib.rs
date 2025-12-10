@@ -7,10 +7,16 @@
 //!
 //! ## Syntax by Examples
 //!
-//! An example for `error_type`:
+//! An example for `error_type!`:
 //!
 //! ```rust
 #![doc = include_str!("../examples/python.rs")]
+//! ```
+//!
+//! Two examples for `ErrorType!`:
+//!
+//! ```rust
+#![doc = include_str!("../examples/wrapper.rs")]
 //! ```
 
 pub use error_enum_core::{ErrorEnum, Kind, SimpleSpan, Span};

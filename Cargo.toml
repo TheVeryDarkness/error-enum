@@ -19,7 +19,8 @@ error-enum-macros = { path = "error-enum-macros", version = "1.0.0-alpha.1" }
 
 annotate-snippets = { version = "0.9.1" }
 ariadne = { version = "0.6.0" }
-codespan-reporting = "0.13.1"
+codespan-reporting = { version = "0.13.1", default-features = false }
+either = "1.15.0"
 lazy-regex = "3.4.2"
 miette = { version = "7.6.0", default-features = false }
 mitsein = { version = "0.8.0", default-features = false }

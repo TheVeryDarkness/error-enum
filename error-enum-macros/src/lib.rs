@@ -5,7 +5,9 @@
 //!
 //! Please refer to [`error-enum`](https://crates.io/crates/error-enum) and
 //! [`its documentation`](https://docs.rs/error-enum/) for more details.
+#![warn(unused_crate_dependencies)]
 
+use either::Either;
 use lazy_regex::{lazy_regex, Lazy, Regex};
 use proc_macro::TokenStream;
 use proc_macro2::{Span, TokenStream as TokenStream2};
@@ -185,7 +187,6 @@ struct Config {
     span_field: Option<Ident>,
     label: Option<LitStr>,
     depth: usize,
-    #[expect(unused)]
     nested: bool,
     #[expect(unused)]
     span: Span,
@@ -217,10 +218,10 @@ impl Config {
     ) -> Result<Self> {
         let mut kind = self.kind;
         let mut number = self.number.clone();
-        let mut msg = None;
+        let mut msg = self.msg.clone();
         let mut label = self.label.clone();
         let depth = self.depth + 1;
-        let mut nested = false;
+        let mut nested = self.nested;
         let mut unused_attrs = Vec::new();
 
         for attr in attrs {
@@ -313,6 +314,35 @@ impl<'i> Iterator for ErrorTreeIter<'i> {
     }
 }
 
+enum ErrorEnumInner {
+    Multiple {
+        brace: Brace,
+        roots: Punctuated<ErrorTree, Token![,]>,
+        body: bool,
+    },
+    Single {
+        node: ErrorTree,
+    },
+}
+
+impl ErrorEnumInner {
+    fn iter(&self, config: Config) -> Result<impl Iterator<Item = Result<Config>> + '_> {
+        match self {
+            ErrorEnumInner::Multiple { roots, .. } => {
+                Ok(Either::Left(ErrorTreeIter::new(roots.iter(), config)?))
+            }
+            ErrorEnumInner::Single { node } => {
+                let iter = Either::Right(std::iter::once(ErrorTreeIter::process_next(
+                    node,
+                    &config,
+                    node.span(),
+                )));
+                Ok(iter)
+            }
+        }
+    }
+}
+
 /// The entire error enum.
 ///
 /// ```ignore
@@ -325,14 +355,16 @@ struct ErrorEnum {
     vis: Visibility,
     name: Ident,
     generics: Generics,
-    brace: Brace,
-    roots: Punctuated<ErrorTree, Token![,]>,
+    inner: ErrorEnumInner,
     config: Config,
 }
 
 impl ErrorEnum {
-    fn iter(&self) -> Result<ErrorTreeIter<'_>> {
-        ErrorTreeIter::new(self.roots.iter(), self.config.clone())
+    fn iter(&self) -> Result<impl Iterator<Item = Result<Config>> + '_> {
+        self.inner.iter(self.config.clone())
+    }
+    fn is_enum(&self) -> bool {
+        matches!(self.inner, ErrorEnumInner::Multiple { .. })
     }
 }
 
@@ -348,13 +380,17 @@ impl Parse for ErrorEnum {
         attrs.retain(|attr| !attr.path().is_ident("diag"));
 
         let roots = Punctuated::parse_terminated(&children)?;
+        let inner = ErrorEnumInner::Multiple {
+            body: true,
+            brace,
+            roots,
+        };
         Ok(Self {
             attrs,
             vis,
             generics,
             name,
-            brace,
-            roots,
+            inner,
             config,
         })
     }
@@ -393,25 +429,77 @@ impl TryFrom<DeriveInput> for ErrorEnum {
                 let config =
                     Config::new(ident.span()).process(&attrs, None, None, None, ident.span())?;
                 attrs.retain(|attr| !attr.path().is_ident("diag"));
+
+                let inner = ErrorEnumInner::Multiple {
+                    body: false,
+                    brace: data_enum.brace_token,
+                    roots,
+                };
                 Ok(Self {
                     attrs,
                     vis,
                     name: ident,
                     generics,
-                    brace: data_enum.brace_token,
-                    roots,
+                    inner,
+                    config,
+                })
+            }
+            syn::Data::Struct(mut data_struct) => {
+                let span = ident.span();
+                let span_ident = split_fields_attrs(&mut data_struct.fields)?;
+                let config =
+                    Config::new(ident.span()).process(&attrs, None, None, None, ident.span())?;
+                attrs.retain(|attr| !attr.path().is_ident("diag"));
+
+                let node = ErrorTree::Variant {
+                    span,
+                    attrs,
+                    ident: ident.clone(),
+                    fields: data_struct.fields,
+                    span_ident,
+                };
+
+                let inner = ErrorEnumInner::Single { node };
+
+                Ok(Self {
+                    attrs: Vec::new(),
+                    vis,
+                    name: ident,
+                    generics,
+                    inner,
                     config,
                 })
             }
             _ => Err(Error::new_spanned(
                 ident,
-                "ErrorEnum can only be derived for enums.",
+                "ErrorEnum can only be derived for enums or structs.",
             )),
         }
     }
 }
 
 impl ErrorEnum {
+    fn variant<'a>(&'a self, ident: &'a Ident) -> impl ToTokens + 'a {
+        struct VariantPrefix<'a> {
+            ident: &'a Ident,
+            is_enum: bool,
+        }
+        impl<'a> ToTokens for VariantPrefix<'a> {
+            fn to_tokens(&self, tokens: &mut TokenStream2) {
+                let ident = self.ident;
+                if self.is_enum {
+                    tokens.extend(quote! { Self::#ident });
+                } else {
+                    tokens.extend(quote! { Self });
+                }
+            }
+        }
+
+        VariantPrefix {
+            ident,
+            is_enum: self.is_enum(),
+        }
+    }
     fn doc(&self) -> Result<Vec<String>> {
         self.iter()?
             .map(|config| {
@@ -501,24 +589,25 @@ impl ErrorEnum {
             })
             .collect()
     }
-    fn display_branch(ident: &Ident, fields: &Fields, msg: &LitStr) -> Result<TokenStream2> {
+    fn display_branch(&self, ident: &Ident, fields: &Fields, msg: &LitStr) -> Result<TokenStream2> {
+        let prefix = self.variant(ident);
         match fields {
             Fields::Named(named) => {
                 let members = named.named.iter().map(|f| f.ident.as_ref());
                 Ok(quote! {
                     #[allow(unused_variables)]
-                    Self::#ident { #(#members),* } => ::core::write!(f, #msg),
+                    #prefix { #(#members),* } => ::core::write!(f, #msg),
                 })
             }
             Fields::Unnamed(unnamed) => {
                 let params = (0..unnamed.unnamed.len()).map(|i| format_ident!("_{}", i));
                 let args = Self::used_unnamed_fields(msg)?;
                 Ok(quote! {
-                    Self::#ident ( #(#params),* ) => ::core::write!(f, #msg #(, #args)* ),
+                    #prefix ( #(#params),* ) => ::core::write!(f, #msg #(, #args)* ),
                 })
             }
             Fields::Unit => Ok(quote! {
-                Self::#ident => ::core::write!(f, #msg),
+                #prefix => ::core::write!(f, #msg),
             }),
         }
     }
@@ -541,32 +630,34 @@ impl ErrorEnum {
                         "Missing message. Consider using `#[diag(msg = \"...\")]`",
                     )
                 })?;
-                Self::display_branch(&ident, &fields, &msg)
+                self.display_branch(&ident, &fields, &msg)
             })
             .collect()
     }
     fn primary_label_branch(
+        &self,
         ident: &Ident,
         fields: &Fields,
         label: &LitStr,
     ) -> Result<TokenStream2> {
+        let prefix = self.variant(ident);
         match fields {
             Fields::Named(named) => {
                 let members = named.named.iter().map(|f| f.ident.as_ref());
                 Ok(quote! {
                     #[allow(unused_variables)]
-                    Self::#ident { #(#members),* } => ::std::format!(#label),
+                    #prefix { #(#members),* } => ::std::format!(#label),
                 })
             }
             Fields::Unnamed(unnamed) => {
                 let params = (0..unnamed.unnamed.len()).map(|i| format_ident!("_{}", i));
                 let args = Self::used_unnamed_fields(label)?;
                 Ok(quote! {
-                    Self::#ident ( #(#params),* ) => ::std::format!(#label #(, #args)* ),
+                    #prefix ( #(#params),* ) => ::std::format!(#label #(, #args)* ),
                 })
             }
             Fields::Unit => Ok(quote! {
-                Self::#ident => ::std::format!(#label),
+                #prefix => ::std::format!(#label),
             }),
         }
     }
@@ -593,11 +684,12 @@ impl ErrorEnum {
                         "Missing label or message. Consider using `#[diag(label = \"...\")]`",
                     )
                 })?;
-                Self::primary_label_branch(&ident, &fields, &label)
+                self.primary_label_branch(&ident, &fields, &label)
             })
             .collect()
     }
     fn impl_error_enum_branch(
+        &self,
         ident: &Ident,
         fields: &Fields,
         span_field: Option<Ident>,
@@ -611,14 +703,16 @@ impl ErrorEnum {
         };
         let code = format!("{}{}", kind.short_str(), number);
 
+        let prefix = self.variant(ident);
+
         let kind = quote! {
-            Self::#ident #branch_ignored => #kind,
+            #prefix #branch_ignored => #kind,
         };
         let number = quote! {
-            Self::#ident #branch_ignored => #number,
+            #prefix #branch_ignored => #number,
         };
         let code = quote! {
-            Self::#ident #branch_ignored => #code,
+            #prefix #branch_ignored => #code,
         };
         let span = if let Some(span_field) = span_field {
             quote! {<::error_enum::SimpleSpan as ::core::convert::From<_>>::from(#span_field)}
@@ -630,18 +724,18 @@ impl ErrorEnum {
                 let members = named.named.iter().map(|f| f.ident.as_ref());
                 quote! {
                     #[allow(unused_variables)]
-                    Self::#ident { #(#members),* } => #span,
+                    #prefix { #(#members),* } => #span,
                 }
             }
             Fields::Unnamed(unnamed) => {
                 let params = (0..unnamed.unnamed.len()).map(|i| format_ident!("_{}", i));
                 quote! {
                     #[allow(unused_variables)]
-                    Self::#ident ( #(#params),* ) => #span,
+                    #prefix ( #(#params),* ) => #span,
                 }
             }
             Fields::Unit => quote! {
-                Self::#ident => #span,
+                #prefix => #span,
             },
         };
         Ok((kind, number, code, primary_span))
@@ -659,14 +753,15 @@ impl ErrorEnum {
                              number,
                              ..
                          }| {
-                            Some((ident?, fields?, span_field, kind?, number))
+                            Some((ident?, fields?, span_field, kind, number))
                         },
                     )
                     .transpose()
             })
             .map(|config| {
                 let (ident, fields, span_field, kind, number) = config?;
-                Self::impl_error_enum_branch(&ident, &fields, span_field, &kind, &number)
+                let kind = kind.unwrap_or_default();
+                self.impl_error_enum_branch(&ident, &fields, span_field, &kind, &number)
             })
             .collect()
     }
@@ -682,17 +777,22 @@ impl ErrorEnum {
 
         let variants = self.variants()?;
 
-        tokens.extend(quote! {
-            #(#attrs)*
-            #[doc = "List of error variants:"]
-            #(
-                #[doc = #doc]
-            )*
-            #vis enum #name #generics
-        });
-        self.brace.surround(tokens, |tokens| {
-            tokens.extend(quote! { #(#variants, )* });
-        });
+        if let ErrorEnumInner::Multiple {
+            body: true, brace, ..
+        } = self.inner
+        {
+            tokens.extend(quote! {
+                #(#attrs)*
+                #[doc = "List of error variants:"]
+                #(
+                    #[doc = #doc]
+                )*
+                #vis enum #name #generics
+            });
+            brace.surround(tokens, |tokens| {
+                tokens.extend(quote! { #(#variants, )* });
+            });
+        }
 
         let display = self.display()?;
         tokens.extend(quote! {

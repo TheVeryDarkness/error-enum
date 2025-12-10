@@ -8,6 +8,7 @@ use std::{
     io::Write,
     process::{Command, Stdio},
 };
+use syn::DeriveInput;
 
 #[track_caller]
 fn assert_eq_source(actual: &str, expected: &str) {
@@ -40,6 +41,15 @@ fn format_str(source: &str) -> String {
 #[track_caller]
 fn test_error_type(tokens: TokenStream, expected: TokenStream) {
     let input: ErrorEnum = syn::parse2(tokens).unwrap();
+    let output = input.into_token_stream();
+    let output = format_str(&output.to_string());
+    let expected = format_str(&expected.to_string());
+    assert_eq_source(&output, &expected);
+}
+#[track_caller]
+fn test_error_type_derive(tokens: TokenStream, expected: TokenStream) {
+    let input: DeriveInput = syn::parse2(tokens).unwrap();
+    let input = ErrorEnum::try_from(input).unwrap();
     let output = input.into_token_stream();
     let output = format_str(&output.to_string());
     let expected = format_str(&expected.to_string());
@@ -265,6 +275,7 @@ fn nested() {
         },
     );
 }
+
 #[test]
 fn escaped_braces_in_msg() {
     test_error_type(
@@ -330,6 +341,127 @@ fn escaped_braces_in_msg() {
                 fn primary_label(&self) -> ::std::string::String {
                     match self {
                         Self::FileNotFound(_0) => ::std::format!("{{0}} not found."),
+                    }
+                }
+            }
+        },
+    );
+}
+
+#[test]
+fn test_error_type_with_derive_input() {
+    test_error_type_derive(
+        quote! {
+            #[derive(Debug, ErrorType)]
+            enum ReadIntError {
+                #[diag(number = "00")]
+                #[diag(msg = "Failed to parse integer from string due to: {0}")]
+                ParseIntError(std::num::ParseIntError),
+                #[diag(number = "01")]
+                #[diag(msg = "Failed to read string due to: {0}")]
+                IOError(std::io::Error),
+            }
+        },
+        quote! {
+            impl ::core::fmt::Display for ReadIntError {
+                fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+                    match self {
+                        Self::ParseIntError(_0) => ::core::write!(f, "Failed to parse integer from string due to: {0}", _0),
+                        Self::IOError(_0) => ::core::write!(f, "Failed to read string due to: {0}", _0),
+                    }
+                }
+            }
+            impl ::core::error::Error for ReadIntError {}
+            impl ::error_enum::ErrorEnum for ReadIntError {
+                type Span = ::error_enum::SimpleSpan;
+                type Message = ::std::string::String;
+                fn kind(&self) -> ::error_enum::Kind {
+                    match self {
+                        Self::ParseIntError(..) => ::error_enum::Kind::Error,
+                        Self::IOError(..) => ::error_enum::Kind::Error,
+                    }
+                }
+                fn number(&self) -> &::core::primitive::str {
+                    match self {
+                        Self::ParseIntError(..) => "00",
+                        Self::IOError(..) => "01",
+                    }
+                }
+                fn code(&self) -> &::core::primitive::str {
+                    match self {
+                        Self::ParseIntError(..) => "E00",
+                        Self::IOError(..) => "E01",
+                    }
+                }
+                fn primary_span(&self) -> ::error_enum::SimpleSpan {
+                    match self {
+                        #[allow(unused_variables)]
+                        Self::ParseIntError(_0) => {
+                            <::error_enum::SimpleSpan as ::core::default::Default>::default()
+                        }
+                        #[allow(unused_variables)]
+                        Self::IOError(_0) => {
+                            <::error_enum::SimpleSpan as ::core::default::Default>::default()
+                        }
+                    }
+                }
+                fn primary_message(&self) -> ::std::string::String {
+                    ::std::format!("{self}")
+                }
+                fn primary_label(&self) -> ::std::string::String {
+                    match self {
+                        Self::ParseIntError(_0) => ::std::format!("Failed to parse integer from string due to: {0}", _0),
+                        Self::IOError(_0) => ::std::format!("Failed to read string due to: {0}", _0),
+                    }
+                }
+            }
+        },
+    );
+    test_error_type_derive(
+        quote! {
+            #[derive(Debug, ErrorType)]
+            #[diag(msg = "Failed to read string due to: {0}")]
+            struct ReadIntError (std::io::Error);
+        },
+        quote! {
+            impl ::core::fmt::Display for ReadIntError {
+                fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+                    match self {
+                        Self(_0) => ::core::write!(f, "Failed to read string due to: {0}", _0),
+                    }
+                }
+            }
+            impl ::core::error::Error for ReadIntError {}
+            impl ::error_enum::ErrorEnum for ReadIntError {
+                type Span = ::error_enum::SimpleSpan;
+                type Message = ::std::string::String;
+                fn kind(&self) -> ::error_enum::Kind {
+                    match self {
+                        Self(..) => ::error_enum::Kind::Error,
+                    }
+                }
+                fn number(&self) -> &::core::primitive::str {
+                    match self {
+                        Self(..) => "",
+                    }
+                }
+                fn code(&self) -> &::core::primitive::str {
+                    match self {
+                        Self(..) => "E",
+                    }
+                }
+                fn primary_span(&self) -> ::error_enum::SimpleSpan {
+                    match self {
+                        #[allow(unused_variables)]
+                        Self(_0) => <::error_enum::SimpleSpan as ::core::default::Default>::default(),
+                    }
+                }
+                fn primary_message(&self) -> ::std::string::String {
+                    ::std::format!("{self}")
+                }
+                fn primary_label(&self) -> ::std::string::String {
+                    match self {
+                        Self(_0) => ::std::format!("Failed to read string due to: {0}", _0),
                     }
                 }
             }
