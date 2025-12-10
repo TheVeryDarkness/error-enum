@@ -84,6 +84,20 @@ impl LineIndexer {
         let line_starts = line_starts.into_boxed_slice();
         unsafe { std::mem::transmute(line_starts) }
     }
+    /// Allocate the [`LineIndexer`] on a custom lifetime.
+    pub fn alloc_on<'a>(self: Box<Self>, f: impl FnOnce(Box<[usize]>) -> &'a [usize]) -> &'a Self {
+        let slice: Box<[usize]> = unsafe { std::mem::transmute(self) };
+        let slice_ref: &'a [usize] = f(slice);
+        unsafe { std::mem::transmute(slice_ref) }
+    }
+    /// Create an [`LineIndexer`] from a boxed slice.
+    pub fn from_boxed_slice(slice: Box<[usize]>) -> Box<Self> {
+        unsafe { std::mem::transmute(slice) }
+    }
+    /// Convert the [`LineIndexer`] into a boxed slice.
+    pub fn into_boxed_slice(self: Box<Self>) -> Box<[usize]> {
+        unsafe { std::mem::transmute(self) }
+    }
 }
 
 impl LineIndexer {
