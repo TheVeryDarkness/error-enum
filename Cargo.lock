@@ -148,7 +148,7 @@ dependencies = [
 
 [[package]]
 name = "error-enum"
-version = "1.0.0-alpha.1"
+version = "1.0.0-alpha.2"
 dependencies = [
  "annotate-snippets",
  "ariadne",
@@ -161,7 +161,7 @@ dependencies = [
 
 [[package]]
 name = "error-enum-core"
-version = "1.0.0-alpha.1"
+version = "1.0.0-alpha.2"
 dependencies = [
  "annotate-snippets",
  "ariadne",
@@ -172,7 +172,7 @@ dependencies = [
 
 [[package]]
 name = "error-enum-macros"
-version = "1.0.0-alpha.1"
+version = "1.0.0-alpha.2"
 dependencies = [
  "either",
  "lazy-regex",
