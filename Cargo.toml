@@ -1,5 +1,5 @@
 [workspace.package]
-version = "1.0.0-alpha.3"
+version = "1.0.0-alpha.4"
 edition = "2021"
 readme = "readme.md"
 keywords = ["error", "derive", "enum", "tree"]
@@ -13,9 +13,9 @@ resolver = "3"
 members = ["error-enum", "error-enum-core", "error-enum-macros"]
 
 [workspace.dependencies]
-error-enum = { path = "error-enum", version = "1.0.0-alpha.3" }
-error-enum-core = { path = "error-enum-core", version = "1.0.0-alpha.3" }
-error-enum-macros = { path = "error-enum-macros", version = "1.0.0-alpha.3" }
+error-enum = { path = "error-enum", version = "1.0.0-alpha.4" }
+error-enum-core = { path = "error-enum-core", version = "1.0.0-alpha.4" }
+error-enum-macros = { path = "error-enum-macros", version = "1.0.0-alpha.4" }
 
 annotate-snippets = { version = "0.9.1" }
 ariadne = { version = "0.6.0" }
