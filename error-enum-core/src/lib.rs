@@ -6,6 +6,7 @@
 //! Please refer to [`error-enum`](https://crates.io/crates/error-enum) and
 //! [`its documentation`](https://docs.rs/error-enum/) for more details.
 #![warn(unused_crate_dependencies)]
+#![cfg_attr(docsrs, feature(doc_cfg))]
 
 pub use indexer::{Indexer, LineIndexer};
 pub use span::{SimpleSpan, Span};
@@ -73,6 +74,7 @@ pub trait ErrorType: std::error::Error {
     ///
     /// [annotate snippet]: https://docs.rs/annotate-snippets/0.9.1/annotate_snippets/snippet/struct.Snippet.html
     #[cfg(feature = "annotate-snippets")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "annotate-snippets")))]
     fn fmt_as_annotate_snippets(&self) -> Result<String, std::io::Error> {
         let result = annotate_snippets_impl::fmt_as_annotate_snippets(
             self,
@@ -85,6 +87,7 @@ pub trait ErrorType: std::error::Error {
     /// [annotate snippet]: https://docs.rs/annotate-snippets/0.9.1/annotate_snippets/snippet/struct.Snippet.html
     /// [format options]: https://docs.rs/annotate-snippets/0.9.1/annotate_snippets/display_list/struct.FormatOptions.html
     #[cfg(feature = "annotate-snippets")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "annotate-snippets")))]
     fn fmt_as_annotate_snippets_with_opts(
         &self,
         opts: annotate_snippets::display_list::FormatOptions,
@@ -97,6 +100,7 @@ pub trait ErrorType: std::error::Error {
     ///
     /// [Ariadne report]: https://docs.rs/ariadne/0.6.0/ariadne/struct.Report.html
     #[cfg(feature = "ariadne")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "ariadne")))]
     fn fmt_as_ariadne_report(&self) -> Result<String, std::io::Error> {
         ariadne_impl::fmt_as_ariadne_report(
             self,
@@ -108,17 +112,20 @@ pub trait ErrorType: std::error::Error {
     /// [Ariadne report]: https://docs.rs/ariadne/0.6.0/ariadne/struct.Report.html
     /// [Ariadne config]: https://docs.rs/ariadne/0.6.0/ariadne/struct.Config.html
     #[cfg(feature = "ariadne")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "ariadne")))]
     fn fmt_as_ariadne_report_with(
         &self,
         config: ariadne::Config,
     ) -> Result<String, std::io::Error> {
         ariadne_impl::fmt_as_ariadne_report(self, config)
     }
+
     /// Format the error as an [Codespan diagnostic].
     ///
     /// [Codespan diagnostic]: https://docs.rs/codespan-reporting/0.13.1/codespan_reporting/diagnostic/struct.Diagnostic.html
     /// [Codespan config]: https://docs.rs/codespan-reporting/0.13.1/codespan_reporting/term/config/struct.Config.html
     #[cfg(feature = "codespan-reporting")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "codespan-reporting")))]
     fn as_codespan_diagnostic(
         &self,
     ) -> (
@@ -132,6 +139,7 @@ pub trait ErrorType: std::error::Error {
     /// [Codespan diagnostic]: https://docs.rs/codespan-reporting/0.13.1/codespan_reporting/diagnostic/struct.Diagnostic.html
     /// [Codespan config]: https://docs.rs/codespan-reporting/0.13.1/codespan_reporting/term/config/struct.Config.html
     #[cfg(feature = "codespan-reporting")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "codespan-reporting")))]
     fn fmt_as_codespan_diagnostic_with(
         &self,
         config: codespan_reporting::term::Config,
@@ -144,6 +152,7 @@ pub trait ErrorType: std::error::Error {
     ///
     /// [Miette diagnostic]: https://docs.rs/miette/7.6.0/miette/trait.Diagnostic.html
     #[cfg(feature = "miette")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "miette")))]
     fn as_miette_diagnostic(&self) -> impl miette::Diagnostic + '_
     where
         Self::Span: Send + Sync,
@@ -155,6 +164,7 @@ pub trait ErrorType: std::error::Error {
     /// [Miette diagnostic]: https://docs.rs/miette/7.6.0/miette/trait.Diagnostic.html
     /// [Miette Handler]: https://docs.rs/miette/7.6.0/miette/trait.ReportHandler.html
     #[cfg(feature = "miette")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "miette")))]
     fn fmt_as_miette_diagnostic_with(&self, handler: &impl miette::ReportHandler) -> String
     where
         Self: 'static + Sized,
@@ -188,10 +198,12 @@ impl<T: ErrorType + ?Sized> ErrorType for &T {
     }
 
     #[cfg(feature = "annotate-snippets")]
+    #[inline]
     fn fmt_as_annotate_snippets(&self) -> Result<String, std::io::Error> {
         (*self).fmt_as_annotate_snippets()
     }
     #[cfg(feature = "annotate-snippets")]
+    #[inline]
     fn fmt_as_annotate_snippets_with_opts(
         &self,
         opts: annotate_snippets::display_list::FormatOptions,
@@ -200,10 +212,12 @@ impl<T: ErrorType + ?Sized> ErrorType for &T {
     }
 
     #[cfg(feature = "ariadne")]
+    #[inline]
     fn fmt_as_ariadne_report(&self) -> Result<String, std::io::Error> {
         (*self).fmt_as_ariadne_report()
     }
     #[cfg(feature = "ariadne")]
+    #[inline]
     fn fmt_as_ariadne_report_with(
         &self,
         config: ariadne::Config,
@@ -211,7 +225,28 @@ impl<T: ErrorType + ?Sized> ErrorType for &T {
         (*self).fmt_as_ariadne_report_with(config)
     }
 
+    #[cfg(feature = "codespan-reporting")]
+    #[inline]
+    fn as_codespan_diagnostic(
+        &self,
+    ) -> (
+        codespan_reporting::diagnostic::Diagnostic<usize>,
+        codespan_reporting_impl::Files<Self>,
+    ) {
+        (*self).as_codespan_diagnostic()
+    }
+    #[cfg(feature = "codespan-reporting")]
+    #[inline]
+    fn fmt_as_codespan_diagnostic_with(
+        &self,
+        config: codespan_reporting::term::Config,
+        styles: Option<&codespan_reporting::term::Styles>,
+    ) -> Result<String, impl std::error::Error> {
+        (*self).fmt_as_codespan_diagnostic_with(config, styles)
+    }
+
     #[cfg(feature = "miette")]
+    #[inline]
     fn as_miette_diagnostic(&self) -> impl miette::Diagnostic + '_
     where
         Self::Span: Send + Sync,
