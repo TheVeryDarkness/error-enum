@@ -7,13 +7,12 @@
 //! [`its documentation`](https://docs.rs/error-enum/) for more details.
 #![warn(unused_crate_dependencies)]
 
-use std::borrow::Cow;
-
 use either::Either;
 use lazy_regex::{lazy_regex, Lazy, Regex};
 use proc_macro::TokenStream;
 use proc_macro2::{Span, TokenStream as TokenStream2};
 use quote::{format_ident, quote, ToTokens};
+use std::borrow::Cow;
 use syn::{
     braced,
     parse::{self, Parse},
