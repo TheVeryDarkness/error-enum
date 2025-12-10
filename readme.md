@@ -1,5 +1,9 @@
 # Error Enum
 
+[![crates.io](https://img.shields.io/crates/v/error-enum.svg)](https://crates.io/crates/error-enum)
+[![docs.rs](https://docs.rs/error-enum/badge.svg)](https://docs.rs/error-enum)
+[![codecov](https://codecov.io/github/theverydarkness/error-enum/graph/badge.svg?token=70168G1POP)](https://codecov.io/github/theverydarkness/error-enum)
+
 Used to generate documentation comments and `Display` implementation for tree-structured error types.
 
 It also provides error rendering capabilities with colorful and detailed error messages, via implementing those traits or structs from crates listed below:
