@@ -9,8 +9,14 @@ pub trait Indexer {
     /// Returns the start and the end of the line that contains the position at `pos`.
     fn line_span_at(&self, pos: usize) -> (usize, usize);
 
-    /// Returns the start and the end of the `(context_lines_before + 1 + context_lines_after)`
-    /// lines that contains the position at `pos`.
+    /// Returns the start and the end of the `(context_lines_before + n + context_lines_after)`
+    /// lines that contains the span from `start` to `end`.
+    ///
+    /// `context_lines_before` and `context_lines_after` specify how many lines before and after
+    /// the span to include.
+    ///
+    /// If there are not enough lines before or after, it will include as many as possible.
+    /// And if `context_lines_before` or `context_lines_after` is zero, no extra lines will be included.
     fn span_with_context_lines(
         &self,
         start: usize,
@@ -55,6 +61,10 @@ impl_indexable!(Rc<T>);
 impl_indexable!(Arc<T>);
 
 /// An [`Indexer`] that stores ending positions of every line (including trailing newlines).
+///
+/// The line and column numbers are zero-based.
+///
+/// And note that the `LineIndexer` works as if there is an implicit newline at the end of the text.
 #[derive(Debug, PartialEq, Eq)]
 #[repr(transparent)]
 pub struct LineIndexer([usize]);
@@ -77,6 +87,7 @@ impl LineIndexer {
 }
 
 impl LineIndexer {
+    /// Get the line number and the starting position of the line at `pos`.
     fn line_start_at(&self, pos: usize) -> usize {
         match self.0.binary_search(&pos) {
             Ok(i) => self.0[i],
@@ -84,6 +95,15 @@ impl LineIndexer {
             Err(i) => self.0[i.saturating_sub(1)],
         }
     }
+    /// Get the line number and the starting position of the line at `pos`.
+    fn line_and_start_at(&self, pos: usize) -> (usize, usize) {
+        match self.0.binary_search(&pos) {
+            Ok(i) => (i + 1, self.0[i]),
+            Err(0) => (0, 0),
+            Err(i) => (i, self.0[i.saturating_sub(1)]),
+        }
+    }
+    /// Get the line number at `pos`.
     fn line_at(&self, pos: usize) -> usize {
         match self.0.binary_search(&pos) {
             Ok(i) => i + 1,
@@ -94,9 +114,9 @@ impl LineIndexer {
 
 impl Indexer for LineIndexer {
     fn line_col_at(&self, pos: usize) -> (usize, usize) {
-        let line_start = self.line_start_at(pos);
+        let (line, line_start) = self.line_and_start_at(pos);
         debug_assert!(pos >= line_start);
-        (line_start, pos - line_start)
+        (line, pos - line_start)
     }
 
     fn line_span_at(&self, pos: usize) -> (usize, usize) {
@@ -120,7 +140,7 @@ impl Indexer for LineIndexer {
         context_lines_after: usize,
     ) -> (usize, usize) {
         let start = if context_lines_before == 0 {
-            start
+            self.line_start_at(start)
         } else {
             self.line_at(start)
                 .saturating_sub(context_lines_before)
@@ -128,7 +148,7 @@ impl Indexer for LineIndexer {
                 .map_or_else(|| 0, |i| self.0[i])
         };
         let end = if context_lines_after == 0 {
-            end
+            self.line_span_at(end).1
         } else {
             self.0[self
                 .line_at(end)

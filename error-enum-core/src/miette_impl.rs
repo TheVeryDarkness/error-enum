@@ -96,8 +96,8 @@ impl<S: Span + Send + Sync> SourceCode for SpanWrapper<S> {
             context_lines_before,
             context_lines_after,
         );
-        let (start_line, start_column) = index.line_col_at(start);
-        let (end_line, _) = index.line_col_at(start);
+        let (start_line, start_column) = index.line_col_at(span.offset());
+        let (end_line, _) = index.line_col_at(span.offset() + span.len());
         // dbg!(start, end, start_line, start_column, end_line);
         let name = self.0.uri().to_string();
         let data = &self.0.source_text().as_ref().as_bytes()[start..end];
