@@ -7,6 +7,8 @@
 //! [`its documentation`](https://docs.rs/error-enum/) for more details.
 #![warn(unused_crate_dependencies)]
 
+use std::borrow::Cow;
+
 use either::Either;
 use lazy_regex::{lazy_regex, Lazy, Regex};
 use proc_macro::TokenStream;
@@ -15,10 +17,10 @@ use quote::{format_ident, quote, ToTokens};
 use syn::{
     braced,
     parse::{self, Parse},
-    parse_macro_input,
+    parse_macro_input, parse_quote,
     punctuated::{self, Punctuated},
     token::{self, Brace},
-    Attribute, DeriveInput, Error, Fields, Generics, Ident, LitStr, Result, Token, Variant,
+    Attribute, DeriveInput, Error, Fields, Generics, Ident, LitStr, Result, Token, Type, Variant,
     Visibility,
 };
 
@@ -185,6 +187,8 @@ struct Config {
     ident: Option<Ident>,
     fields: Option<Fields>,
     span_field: Option<Ident>,
+    // FIXME: move to `ErrorEnum` for better performance?
+    span_type: Option<Type>,
     label: Option<LitStr>,
     depth: usize,
     nested: bool,
@@ -202,6 +206,7 @@ impl Config {
             ident: None,
             fields: None,
             span_field: None,
+            span_type: None,
             label: None,
             depth: 0,
             nested: false,
@@ -220,6 +225,7 @@ impl Config {
         let mut number = self.number.clone();
         let mut msg = self.msg.clone();
         let mut label = self.label.clone();
+        let mut span_type = self.span_type.clone();
         let depth = self.depth + 1;
         let mut nested = self.nested;
         let mut unused_attrs = Vec::new();
@@ -230,17 +236,20 @@ impl Config {
                     if meta.path.is_ident("kind") {
                         let value: LitStr = meta.value()?.parse()?;
                         kind = Some(value.try_into()?);
-                    } else if meta.path.is_ident("number") {
-                        let value: LitStr = meta.value()?.parse()?;
-                        number.push_str(value.value().as_str());
-                    } else if meta.path.is_ident("msg") {
-                        let value: LitStr = meta.value()?.parse()?;
-                        msg = Some(value);
                     } else if meta.path.is_ident("label") {
                         let value: LitStr = meta.value()?.parse()?;
                         label = Some(value);
+                    } else if meta.path.is_ident("msg") {
+                        let value: LitStr = meta.value()?.parse()?;
+                        msg = Some(value);
                     } else if meta.path.is_ident("nested") {
                         nested = true;
+                    } else if meta.path.is_ident("number") {
+                        let value: LitStr = meta.value()?.parse()?;
+                        number.push_str(value.value().as_str());
+                    } else if meta.path.is_ident("span_type") {
+                        let value: LitStr = meta.value()?.parse()?;
+                        span_type = Some(value.parse()?);
                     } else {
                         return Err(Error::new_spanned(meta.path, "Unknown attribute key."));
                     }
@@ -261,6 +270,7 @@ impl Config {
             ident,
             fields,
             span_field,
+            span_type,
             label,
             depth,
             nested,
@@ -714,10 +724,11 @@ impl ErrorEnum {
         let code = quote! {
             #prefix #branch_ignored => #code,
         };
+        let span_type = self.span_type();
         let span = if let Some(span_field) = span_field {
-            quote! {<::error_enum::SimpleSpan as ::core::convert::From<_>>::from(#span_field)}
+            quote! {<#span_type as ::core::convert::From<_>>::from(#span_field)}
         } else {
-            quote! {<::error_enum::SimpleSpan as ::core::default::Default>::default()}
+            quote! {<#span_type as ::core::default::Default>::default()}
         };
         let primary_span = match fields {
             Fields::Named(named) => {
@@ -765,6 +776,16 @@ impl ErrorEnum {
             })
             .collect()
     }
+    fn span_type(&self) -> Cow<'_, Type> {
+        self.config.span_type.as_ref().map_or_else(
+            || {
+                Cow::Owned(parse_quote! {
+                    ::error_enum::SimpleSpan
+                })
+            },
+            Cow::Borrowed,
+        )
+    }
     fn try_to_tokens(&self, tokens: &mut TokenStream2) -> Result<()> {
         let attrs = &self.attrs;
         let vis = &self.vis;
@@ -808,9 +829,10 @@ impl ErrorEnum {
 
         let (kind, number, code, primary_span) = self.impl_error_enum()?;
         let primary_label = self.primary_label()?;
+        let span_type = self.span_type();
         tokens.extend(quote! {
             impl #impl_generics ::error_enum::ErrorType for #name #ty_generics #where_clause {
-                type Span = ::error_enum::SimpleSpan;
+                type Span = #span_type;
                 type Message = ::std::string::String;
 
                 fn kind(&self) -> ::error_enum::Kind {
@@ -828,7 +850,7 @@ impl ErrorEnum {
                         #(#code)*
                     }
                 }
-                fn primary_span(&self) -> ::error_enum::SimpleSpan {
+                fn primary_span(&self) -> #span_type {
                     match self {
                         #(#primary_span)*
                     }
