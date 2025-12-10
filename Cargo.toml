@@ -35,6 +35,7 @@ syn = { version = "2", features = ["full"] }
 [workspace.lints.rust]
 missing_docs = "deny"
 private_interfaces = "deny"
+unreachable_pub = "warn"
 # unused_crate_dependencies = "warn"
 
 [workspace.lints.rustdoc]
