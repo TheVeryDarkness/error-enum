@@ -144,7 +144,7 @@ pub trait ErrorType: std::error::Error {
         &self,
         config: codespan_reporting::term::Config,
         styles: Option<&codespan_reporting::term::Styles>,
-    ) -> Result<String, impl std::error::Error> {
+    ) -> Result<String, codespan_reporting::files::Error> {
         codespan_reporting_impl::fmt_as_codespan_diagnostic(self, config, styles)
     }
 
@@ -241,7 +241,7 @@ impl<T: ErrorType + ?Sized> ErrorType for &T {
         &self,
         config: codespan_reporting::term::Config,
         styles: Option<&codespan_reporting::term::Styles>,
-    ) -> Result<String, impl std::error::Error> {
+    ) -> Result<String, codespan_reporting::files::Error> {
         (*self).fmt_as_codespan_diagnostic_with(config, styles)
     }
 
