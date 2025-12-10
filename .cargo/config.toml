@@ -1,5 +1,5 @@
 [alias]
-cov = "llvm-cov --all-features --html"
+cov = "llvm-cov --all-features --workspace --html"
 tests = "test --all-features --workspace"
 lints = "clippy --all-features --all-targets --workspace -- -D warnings"
 
