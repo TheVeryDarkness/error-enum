@@ -1,4 +1,5 @@
 //! Example demonstrating wrapping errors using error-enum crate.
+#![expect(clippy::unwrap_used)]
 
 use error_enum::ErrorType;
 use std::io;
@@ -19,7 +20,7 @@ fn main() {
     let parse_error = ReadIntError::ParseIntError("abc".parse::<i32>().unwrap_err());
     println!("ParseIntError: {}", parse_error);
 
-    let io_error = ReadIntError::IOError(io::Error::new(io::ErrorKind::Other, "disk error"));
+    let io_error = ReadIntError::IOError(io::Error::other("disk error"));
     println!("IOError: {}", io_error);
 
     let simple_io_error = IOError(io::Error::new(io::ErrorKind::NotFound, "file not found"));
