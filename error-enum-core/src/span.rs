@@ -8,7 +8,7 @@ pub trait Span: Clone {
     /// The source text type for the span.
     type Source: AsRef<str> + Clone;
     /// The index of the source text.
-    type Index: Indexer;
+    type Index: Indexer + ?Sized;
 
     /// Get the start position of the span.
     fn start(&self) -> usize;
