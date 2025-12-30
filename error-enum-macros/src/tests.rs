@@ -122,7 +122,7 @@ fn basic() {
                 fn primary_label(&self) -> ::error_enum::String {
                     match self {
                         #[allow(unused_variables)]
-                        Self::FileNotFound { path } => ::std::format!("{path} not found."),
+                        Self::FileNotFound { path } => ::error_enum::format!("{path} not found."),
                     }
                 }
                 fn additional(
@@ -199,9 +199,9 @@ fn deep() {
                         Self::AccessDenied => "E00",
                     }
                 }
-                fn primary_span(&self) -> ::error_enum::SimpleSpan {
+                fn primary_span(&self) -> ::core::option::Option<::error_enum::SimpleSpan> {
                     match self {
-                        Self::AccessDenied => <::error_enum::SimpleSpan as ::core::default::Default>::default(),
+                        Self::AccessDenied => ::core::option::Option::None,
                     }
                 }
                 fn primary_message(&self) -> ::error_enum::String {
@@ -209,7 +209,7 @@ fn deep() {
                 }
                 fn primary_label(&self) -> ::error_enum::String {
                     match self {
-                        Self::AccessDenied => ::std::format!("无权限。"),
+                        Self::AccessDenied => ::error_enum::format!("无权限。"),
                     }
                 }
                 fn additional(
@@ -295,7 +295,7 @@ fn nested() {
                 }
                 fn primary_label(&self) -> ::error_enum::String {
                     match self {
-                        Self::FileError(_0) => ::std::format!("{0}", _0),
+                        Self::FileError(_0) => ::error_enum::format!("{0}", _0),
                     }
                 }
                 fn additional(
@@ -380,7 +380,7 @@ fn escaped_braces_in_msg() {
                 }
                 fn primary_label(&self) -> ::error_enum::String {
                     match self {
-                        Self::FileNotFound(_0) => ::std::format!("{{0}} not found."),
+                        Self::FileNotFound(_0) => ::error_enum::format!("{{0}} not found."),
                     }
                 }
                 fn additional(
@@ -419,7 +419,9 @@ fn test_error_type_with_derive_input() {
             impl ::core::fmt::Display for ReadIntError {
                 fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
                     match self {
-                        Self::ParseIntError(_0) => ::core::write!(f, "Failed to parse integer from string due to: {0}", _0),
+                        Self::ParseIntError(_0) => {
+                            ::core::write!(f, "Failed to parse integer from string due to: {0}", _0)
+                        }
                         Self::IOError(_0) => ::core::write!(f, "Failed to read string due to: {0}", _0),
                     }
                 }
@@ -446,16 +448,12 @@ fn test_error_type_with_derive_input() {
                         Self::IOError(..) => "E01",
                     }
                 }
-                fn primary_span(&self) -> ::error_enum::SimpleSpan {
+                fn primary_span(&self) -> ::core::option::Option<::error_enum::SimpleSpan> {
                     match self {
                         #[allow(unused_variables)]
-                        Self::ParseIntError(_0) => {
-                            <::error_enum::SimpleSpan as ::core::default::Default>::default()
-                        }
+                        Self::ParseIntError(_0) => ::core::option::Option::None,
                         #[allow(unused_variables)]
-                        Self::IOError(_0) => {
-                            <::error_enum::SimpleSpan as ::core::default::Default>::default()
-                        }
+                        Self::IOError(_0) => ::core::option::Option::None,
                     }
                 }
                 fn primary_message(&self) -> ::error_enum::String {
@@ -464,9 +462,9 @@ fn test_error_type_with_derive_input() {
                 fn primary_label(&self) -> ::error_enum::String {
                     match self {
                         Self::ParseIntError(_0) => {
-                            ::std::format!("Failed to parse integer from string due to: {0}", _0)
+                            ::error_enum::format!("Failed to parse integer from string due to: {0}", _0)
                         }
-                        Self::IOError(_0) => ::std::format!("Failed to read string due to: {0}", _0),
+                        Self::IOError(_0) => ::error_enum::format!("Failed to read string due to: {0}", _0),
                     }
                 }
                 fn additional(
@@ -519,10 +517,10 @@ fn test_error_type_with_derive_input() {
                         Self(..) => "E",
                     }
                 }
-                fn primary_span(&self) -> ::error_enum::SimpleSpan {
+                fn primary_span(&self) -> ::core::option::Option<::error_enum::SimpleSpan> {
                     match self {
                         #[allow(unused_variables)]
-                        Self(_0) => <::error_enum::SimpleSpan as ::core::default::Default>::default(),
+                        Self(_0) => ::core::option::Option::None,
                     }
                 }
                 fn primary_message(&self) -> ::error_enum::String {
@@ -530,7 +528,7 @@ fn test_error_type_with_derive_input() {
                 }
                 fn primary_label(&self) -> ::error_enum::String {
                     match self {
-                        Self(_0) => ::std::format!("Failed to read string due to: {0}", _0),
+                        Self(_0) => ::error_enum::format!("Failed to read string due to: {0}", _0),
                     }
                 }
                 fn additional(

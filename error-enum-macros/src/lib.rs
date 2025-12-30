@@ -782,9 +782,9 @@ impl ErrorEnum {
         };
         let span_type = self.span_type();
         let span = if let Some(span_field) = span_field {
-            quote! {<#span_type as ::core::convert::From<_>>::from(#span_field)}
+            quote! {::core::option::Option::Some(<#span_type as ::core::convert::From<_>>::from(#span_field))}
         } else {
-            quote! {<#span_type as ::core::default::Default>::default()}
+            quote! {::core::option::Option::None}
         };
         let primary_span = match fields {
             Fields::Named(named) => {
@@ -909,7 +909,7 @@ impl ErrorEnum {
                         #(#code)*
                     }
                 }
-                fn primary_span(&self) -> #span_type {
+                fn primary_span(&self) -> #option_span_type {
                     match self {
                         #(#primary_span)*
                     }
@@ -948,7 +948,7 @@ impl ToTokens for ErrorEnum {
 
 /// Define a new layered error type.
 ///
-/// Syntax:
+/// # Syntax
 ///
 /// ```ignore
 /// $error_type =
@@ -958,36 +958,24 @@ impl ToTokens for ErrorEnum {
 ///
 /// $variant =
 ///   // Prefix node.
-///     #[diag(kind   = $kind:lit_str)]
-///     #[diag(number = $number:lit_int)]
-///     #[diag(msg    = $msg:lit_str)]
 ///     {
 ///         $($child_variant:variant, )*
 ///     }
-///   // Leaf node (three forms).
-///   | #[diag(kind   = $kind:lit_str)]
-///     #[diag(number = $number:lit_int)]
-///     #[diag(msg    = $msg:lit_str)]
-///     $ident:ident (
+///   // Leaf node (three forms, just the same as `syn::Variant`).
+///   | $ident:ident (
 ///         $(
-///             $(#[diag(span)])?
 ///             $field_ty:ty
 ///         ),*
 ///     )
-///   | #[diag(kind   = $kind:lit_str)]
-///     #[diag(number = $number:lit_int)]
-///     #[diag(msg    = $msg:lit_str)]
-///     $ident:ident {
+///   | $ident:ident {
 ///         $(
-///             $(#[diag(span)])?
 ///             $field_name:ident: $field_ty:ty
 ///         ),*
 ///     }
-///   | #[diag(kind   = $kind:lit_str)]
-///     #[diag(number = $number:lit_int)]
-///     #[diag(msg    = $msg:lit_str)]
-///     $ident:ident
+///   | $ident:ident
 /// ```
+///
+#[doc = include_str!("../attributes.md")]
 #[proc_macro]
 pub fn error_type(token: TokenStream) -> TokenStream {
     let error = parse_macro_input!(token as ErrorEnum);
@@ -996,7 +984,7 @@ pub fn error_type(token: TokenStream) -> TokenStream {
 
 /// Implement error capabilities for an existing enum.
 ///
-/// See [`error_type!`] for syntax details.
+#[doc = include_str!("../attributes.md")]
 #[proc_macro_derive(ErrorType, attributes(diag))]
 pub fn error_enum(token: TokenStream) -> TokenStream {
     let input: DeriveInput = parse_macro_input!(token as DeriveInput);

@@ -86,7 +86,7 @@ pub(crate) fn to_ariadne_report<T: ErrorType + ?Sized>(
     buf: &mut impl io::Write,
     config: Config,
 ) -> Result<(), io::Error> {
-    let primary_span = error.primary_span();
+    let primary_span = error.primary_span().unwrap_or_default();
     let primary_message = error.primary_message();
     let cache: Cache<T> = Cache::from_iter(iter::once(primary_span.clone()));
     Report::build(error.kind().into(), SpanWrapper(primary_span.clone()))

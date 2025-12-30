@@ -25,21 +25,19 @@ pub(crate) type Files<T> =
 pub(crate) fn to_codespan_diagnostic<T: ErrorType + ?Sized>(
     value: &T,
 ) -> (Diagnostic<usize>, Files<T>) {
+    let primary_span = value.primary_span().unwrap_or_default();
     let diagnostic = Diagnostic {
         severity: value.kind().into(),
         code: Some(value.code().into()),
         message: value.primary_message().to_string(),
-        labels: [
-            Label::new(LabelStyle::Primary, 0, value.primary_span().range())
-                .with_message(value.primary_label()),
-        ]
+        labels: [Label::new(LabelStyle::Primary, 0, primary_span.range())
+            .with_message(value.primary_label())]
         .into(),
         notes: Vec::new(),
     };
 
     // FIXME: implement my own `Files` to avoid cloning source texts and indexes
     let mut files = SimpleFiles::new();
-    let primary_span = value.primary_span();
     files.add(
         primary_span.uri().clone(),
         primary_span.source_text().clone(),

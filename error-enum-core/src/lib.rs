@@ -56,7 +56,7 @@ impl Kind {
 /// [`ErrorType`]: https://docs.rs/error-enum-macros/latest/error_enum_macros/derive.ErrorType.html
 pub trait ErrorType: core::error::Error {
     /// The span type associated with the error type.
-    type Span: Span;
+    type Span: Span + Default;
     /// The message type associated with the error type.
     type Message: fmt::Display;
 
@@ -70,14 +70,14 @@ pub trait ErrorType: core::error::Error {
     /// like "E0", "W1", etc.
     fn code(&self) -> &str;
     /// Get the primary span of the error.
-    fn primary_span(&self) -> Self::Span;
+    fn primary_span(&self) -> Option<Self::Span>;
     /// Get the primary message of the error.
     fn primary_message(&self) -> Self::Message;
     /// Get the primary label of the error.
     fn primary_label(&self) -> Self::Message;
 
     /// Get the primary diagnostic of the error.
-    fn primary(&self) -> (Self::Span, Self::Message, Self::Message) {
+    fn primary(&self) -> (Option<Self::Span>, Self::Message, Self::Message) {
         (
             self.primary_span(),
             self.primary_message(),
@@ -209,7 +209,7 @@ impl<T: ErrorType + ?Sized> ErrorType for &T {
         (*self).code()
     }
     #[inline]
-    fn primary_span(&self) -> Self::Span {
+    fn primary_span(&self) -> Option<Self::Span> {
         (*self).primary_span()
     }
     #[inline]
@@ -222,7 +222,7 @@ impl<T: ErrorType + ?Sized> ErrorType for &T {
     }
 
     #[inline]
-    fn primary(&self) -> (Self::Span, Self::Message, Self::Message) {
+    fn primary(&self) -> (Option<Self::Span>, Self::Message, Self::Message) {
         (*self).primary()
     }
 

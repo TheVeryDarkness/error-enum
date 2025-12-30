@@ -11,9 +11,9 @@ use miette::{
 
 pub(crate) struct Wrapper<'a, T: ?Sized, S>(&'a T, SpanWrapper<S>);
 
-impl<'a, T: ErrorType<Span = S> + ?Sized, S: Span> Wrapper<'a, T, S> {
+impl<'a, T: ErrorType<Span = S> + ?Sized, S: Span + Default> Wrapper<'a, T, S> {
     pub(crate) fn new(value: &'a T) -> Self {
-        Self(value, SpanWrapper(value.primary_span()))
+        Self(value, SpanWrapper(value.primary_span().unwrap_or_default()))
     }
 }
 
@@ -49,10 +49,10 @@ impl<T: ErrorType + ?Sized, S: Span + Send + Sync> Diagnostic for Wrapper<'_, T,
         Some(&self.1)
     }
     fn url<'a>(&'a self) -> Option<Box<dyn fmt::Display + 'a>> {
-        Some(Box::new(self.0.primary_span().uri().clone()))
+        Some(Box::new(self.0.primary_span()?.uri().clone()))
     }
     fn labels(&self) -> Option<Box<dyn Iterator<Item = miette::LabeledSpan> + '_>> {
-        let primary_span = self.0.primary_span();
+        let primary_span = self.0.primary_span()?;
         let iter = [LabeledSpan::new_primary_with_span(
             Some(self.0.primary_label().to_string()),
             SourceSpan::new(

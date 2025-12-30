@@ -74,7 +74,7 @@ fn main() {
         "`'1'` is expected to be of type `int`, but is of type `str`."
     );
     assert_eq!(error.code(), "E00");
-    assert_eq!(error.primary_span(), span);
+    assert_eq!(error.primary_span(), Some(span));
 
     eprintln!("---------- display ----------\n{}", error);
 

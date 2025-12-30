@@ -23,7 +23,7 @@ pub(crate) fn fmt_as_annotate_snippets<T: ErrorType + ?Sized>(
 ) -> String {
     let primary_message = error.primary_message().to_string();
     let primary_label = error.primary_label().to_string();
-    let primary_span = error.primary_span();
+    let primary_span = error.primary_span().unwrap_or_default();
     let kind = error.kind();
     let title = Annotation {
         id: Some(error.code()),

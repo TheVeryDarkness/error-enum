@@ -208,11 +208,7 @@ fn miette() {
             "\
 1 and 2 is not red.
     Diagnostic severity: error
-Begin snippet for  starting at line 2, column 1
-
 diagnostic code: E01
-For more details, see:
-
 ",
         );
     }
@@ -224,11 +220,9 @@ For more details, see:
         assert_eq(
             &s,
             "\
-\u{1b}]8;;\u{1b}\\E01 (link)\u{1b}]8;;\u{1b}\\
+E01
 
   x 1 and 2 is not red.
-   ,-[:2:1]
-   `----
 ",
         );
     }
