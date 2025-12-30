@@ -1,5 +1,6 @@
 //! Example demonstrating wrapping errors using error-enum crate.
 #![expect(clippy::unwrap_used)]
+#![expect(clippy::std_instead_of_core)]
 
 use error_enum::ErrorType;
 use std::io;

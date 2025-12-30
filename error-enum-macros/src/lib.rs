@@ -657,18 +657,18 @@ impl ErrorEnum {
                 let members = named.named.iter().map(|f| f.ident.as_ref());
                 Ok(quote! {
                     #[allow(unused_variables)]
-                    #prefix { #(#members),* } => ::std::format!(#label),
+                    #prefix { #(#members),* } => ::error_enum::format!(#label),
                 })
             }
             Fields::Unnamed(unnamed) => {
                 let params = (0..unnamed.unnamed.len()).map(|i| format_ident!("_{}", i));
                 let args = Self::used_unnamed_fields(label)?;
                 Ok(quote! {
-                    #prefix ( #(#params),* ) => ::std::format!(#label #(, #args)* ),
+                    #prefix ( #(#params),* ) => ::error_enum::format!(#label #(, #args)* ),
                 })
             }
             Fields::Unit => Ok(quote! {
-                #prefix => ::std::format!(#label),
+                #prefix => ::error_enum::format!(#label),
             }),
         }
     }

@@ -1,6 +1,15 @@
-#![allow(clippy::unwrap_used)]
 //! An example.
+#![allow(clippy::unwrap_used)]
+#![no_std]
 
+extern crate alloc;
+extern crate std as _std;
+
+use _std::eprintln;
+use alloc::{
+    borrow::ToOwned as _,
+    string::{String, ToString as _},
+};
 use error_enum::{error_type, ErrorType, SimpleSpan};
 
 error_type! {
@@ -66,6 +75,8 @@ fn main() {
     );
     assert_eq!(error.code(), "E00");
     assert_eq!(error.primary_span(), span);
+
+    eprintln!("---------- display ----------\n{}", error);
 
     #[cfg(feature = "annotate-snippets")]
     eprintln!(
