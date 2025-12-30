@@ -1,5 +1,7 @@
 use crate::{ErrorType, Kind, Span};
+use alloc::{string::String, vec::Vec};
 use ariadne::{Config, Label, Report, ReportKind};
+use core::{fmt, iter};
 use std::io;
 
 impl From<Kind> for ReportKind<'_> {
@@ -62,7 +64,7 @@ impl<T: ErrorType + ?Sized> ariadne::Cache<<T::Span as Span>::Uri> for Cache<T> 
     fn fetch(
         &mut self,
         id: &<T::Span as Span>::Uri,
-    ) -> Result<&ariadne::Source<Self::Storage>, impl std::fmt::Debug> {
+    ) -> Result<&ariadne::Source<Self::Storage>, impl fmt::Debug> {
         self.sources
             .iter()
             .find(|(uri, _)| uri == id)
@@ -70,7 +72,7 @@ impl<T: ErrorType + ?Sized> ariadne::Cache<<T::Span as Span>::Uri> for Cache<T> 
             .ok_or("Source not found")
     }
 
-    fn display<'a>(&self, id: &'a <T::Span as Span>::Uri) -> Option<impl std::fmt::Display + 'a> {
+    fn display<'a>(&self, id: &'a <T::Span as Span>::Uri) -> Option<impl fmt::Display + 'a> {
         self.sources
             .iter()
             .find(|(uri, _)| uri == id)
@@ -86,7 +88,7 @@ pub(crate) fn to_ariadne_report<T: ErrorType + ?Sized>(
 ) -> Result<(), io::Error> {
     let primary_span = error.primary_span();
     let primary_message = error.primary_message();
-    let cache: Cache<T> = Cache::from_iter(std::iter::once(primary_span.clone()));
+    let cache: Cache<T> = Cache::from_iter(iter::once(primary_span.clone()));
     Report::build(error.kind().into(), SpanWrapper(primary_span.clone()))
         .with_code(error.code())
         .with_message(primary_message)

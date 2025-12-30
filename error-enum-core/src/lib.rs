@@ -6,11 +6,18 @@
 //! Please refer to [`error-enum`](https://crates.io/crates/error-enum) and
 //! [`its documentation`](https://docs.rs/error-enum/) for more details.
 #![warn(unused_crate_dependencies)]
+#![no_std]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
+pub use alloc::format;
+pub use alloc::string::String;
+use core::fmt;
 pub use indexer::{Indexer, LineIndexer};
 pub use span::{SimpleSpan, Span};
-use std::fmt;
+
+extern crate alloc;
+#[cfg(feature = "std")]
+extern crate std;
 
 mod indexer;
 mod span;
@@ -48,7 +55,7 @@ impl Kind {
 ///
 /// [`error_type!`]: https://docs.rs/error-enum-macros/latest/error_enum_macros/macro.error_type.html
 /// [`ErrorType`]: https://docs.rs/error-enum-macros/latest/error_enum_macros/derive.ErrorType.html
-pub trait ErrorType: std::error::Error {
+pub trait ErrorType: core::error::Error {
     /// The span type associated with the error type.
     type Span: Span;
     /// The message type associated with the error type.
@@ -70,17 +77,30 @@ pub trait ErrorType: std::error::Error {
     /// Get the primary label of the error.
     fn primary_label(&self) -> Self::Message;
 
+    /// Get the primary diagnostic of the error.
+    fn primary(&self) -> (Self::Span, Self::Message, Self::Message) {
+        (
+            self.primary_span(),
+            self.primary_message(),
+            self.primary_label(),
+        )
+    }
+
+    /// Get additional spans, messages, and labels of the error.
+    fn additional(
+        &self,
+    ) -> impl Iterator<Item = (Option<Self::Span>, Self::Message, Self::Message)> + '_;
+
     /// Format the error as an [annotate snippet].
     ///
     /// [annotate snippet]: https://docs.rs/annotate-snippets/0.9.1/annotate_snippets/snippet/struct.Snippet.html
     #[cfg(feature = "annotate-snippets")]
     #[cfg_attr(docsrs, doc(cfg(feature = "annotate-snippets")))]
-    fn fmt_as_annotate_snippets(&self) -> Result<String, std::io::Error> {
-        let result = annotate_snippets_impl::fmt_as_annotate_snippets(
+    fn fmt_as_annotate_snippets(&self) -> String {
+        annotate_snippets_impl::fmt_as_annotate_snippets(
             self,
             annotate_snippets::display_list::FormatOptions::default(),
-        );
-        Ok(result)
+        )
     }
     /// Format the error as an [annotate snippet] with [format options].
     ///
@@ -91,9 +111,8 @@ pub trait ErrorType: std::error::Error {
     fn fmt_as_annotate_snippets_with_opts(
         &self,
         opts: annotate_snippets::display_list::FormatOptions,
-    ) -> Result<String, std::io::Error> {
-        let result = annotate_snippets_impl::fmt_as_annotate_snippets(self, opts);
-        Ok(result)
+    ) -> String {
+        annotate_snippets_impl::fmt_as_annotate_snippets(self, opts)
     }
 
     /// Format the error as an [Ariadne report].
@@ -203,9 +222,21 @@ impl<T: ErrorType + ?Sized> ErrorType for &T {
         (*self).primary_label()
     }
 
+    #[inline]
+    fn primary(&self) -> (Self::Span, Self::Message, Self::Message) {
+        (*self).primary()
+    }
+
+    #[inline]
+    fn additional(
+        &self,
+    ) -> impl Iterator<Item = (Option<Self::Span>, Self::Message, Self::Message)> + '_ {
+        (*self).additional()
+    }
+
     #[cfg(feature = "annotate-snippets")]
     #[inline]
-    fn fmt_as_annotate_snippets(&self) -> Result<String, std::io::Error> {
+    fn fmt_as_annotate_snippets(&self) -> String {
         (*self).fmt_as_annotate_snippets()
     }
     #[cfg(feature = "annotate-snippets")]
@@ -213,7 +244,7 @@ impl<T: ErrorType + ?Sized> ErrorType for &T {
     fn fmt_as_annotate_snippets_with_opts(
         &self,
         opts: annotate_snippets::display_list::FormatOptions,
-    ) -> Result<String, std::io::Error> {
+    ) -> String {
         (*self).fmt_as_annotate_snippets_with_opts(opts)
     }
 

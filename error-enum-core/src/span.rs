@@ -1,5 +1,6 @@
 use crate::{Indexer, LineIndexer};
-use std::{fmt, ops::Range, sync::Arc};
+use alloc::sync::Arc;
+use core::{fmt, ops::Range};
 
 /// Trait for span types used in error enums.
 pub trait Span: Clone {

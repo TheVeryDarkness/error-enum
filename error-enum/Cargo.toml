@@ -14,6 +14,7 @@ annotate-snippets = ["error-enum-core/annotate-snippets"]
 ariadne = ["error-enum-core/ariadne"]
 codespan-reporting = ["error-enum-core/codespan-reporting"]
 miette = ["error-enum-core/miette"]
+std = ["error-enum-core/std"]
 
 [dependencies]
 error-enum-macros = { workspace = true }

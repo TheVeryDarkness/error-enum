@@ -1,4 +1,6 @@
 use crate::{ErrorType, Kind, Span};
+use alloc::string::ToString as _;
+use alloc::{string::String, vec::Vec};
 use annotate_snippets::{
     display_list::{DisplayList, FormatOptions},
     snippet::{Annotation, AnnotationType, Slice, Snippet, SourceAnnotation},

@@ -11,9 +11,10 @@ categories.workspace = true
 
 [features]
 annotate-snippets = ["dep:annotate-snippets"]
-ariadne = ["dep:ariadne"]
-codespan-reporting = ["dep:codespan-reporting"]
+ariadne = ["dep:ariadne", "std"]
+codespan-reporting = ["dep:codespan-reporting", "std"]
 miette = ["dep:miette"]
+std = []
 
 [dependencies]
 annotate-snippets = { workspace = true, optional = true }

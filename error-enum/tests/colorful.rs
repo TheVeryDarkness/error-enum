@@ -71,9 +71,7 @@ fn annotate_snippets() {
     let error = ColoredError::RedError(1, 2);
 
     {
-        let s = error
-            .fmt_as_annotate_snippets_with_opts(FormatOptions::default())
-            .unwrap();
+        let s = error.fmt_as_annotate_snippets_with_opts(FormatOptions::default());
         assert_eq(
             &s,
             "\
@@ -89,9 +87,7 @@ error[E01]: 1 and 2 is not red.
         span: SimpleSpan::new("foo.rs", "use white;", 4, 9),
     };
     {
-        let s = error
-            .fmt_as_annotate_snippets_with_opts(FormatOptions::default())
-            .unwrap();
+        let s = error.fmt_as_annotate_snippets_with_opts(FormatOptions::default());
         assert_eq(
             &s,
             "\

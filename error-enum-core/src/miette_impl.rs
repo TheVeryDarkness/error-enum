@@ -1,9 +1,13 @@
 use crate::{ErrorType, Indexer, Kind, Span};
+use alloc::{
+    boxed::Box,
+    string::{String, ToString as _},
+};
+use core::{error::Error, fmt};
 use miette::{
     Diagnostic, LabeledSpan, MietteError, MietteSpanContents, ReportHandler, Severity, SourceCode,
     SourceSpan, SpanContents,
 };
-use std::{error::Error, fmt};
 
 pub(crate) struct Wrapper<'a, T: ?Sized, S>(&'a T, SpanWrapper<S>);
 

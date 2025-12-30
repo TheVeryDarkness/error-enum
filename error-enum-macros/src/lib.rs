@@ -7,12 +7,12 @@
 //! [`its documentation`](https://docs.rs/error-enum/) for more details.
 #![warn(unused_crate_dependencies)]
 
+use alloc::borrow::Cow;
 use either::Either;
 use lazy_regex::{lazy_regex, Lazy, Regex};
 use proc_macro::TokenStream;
 use proc_macro2::{Span, TokenStream as TokenStream2};
 use quote::{format_ident, quote, ToTokens};
-use std::borrow::Cow;
 use syn::{
     braced,
     parse::{self, Parse},
@@ -22,6 +22,8 @@ use syn::{
     Attribute, DeriveInput, Error, Fields, Generics, Ident, LitStr, Result, Token, Type, Variant,
     Visibility,
 };
+
+extern crate alloc;
 
 #[cfg(test)]
 mod tests;
@@ -341,7 +343,7 @@ impl ErrorEnumInner {
                 Ok(Either::Left(ErrorTreeIter::new(roots.iter(), config)?))
             }
             ErrorEnumInner::Single { node } => {
-                let iter = Either::Right(std::iter::once(ErrorTreeIter::process_next(
+                let iter = Either::Right(core::iter::once(ErrorTreeIter::process_next(
                     node,
                     &config,
                     node.span(),
@@ -697,6 +699,61 @@ impl ErrorEnum {
             })
             .collect()
     }
+    fn additional_branch(
+        &self,
+        ident: &Ident,
+        fields: &Fields,
+        label: &LitStr,
+    ) -> Result<TokenStream2> {
+        let prefix = self.variant(ident);
+        match fields {
+            Fields::Named(named) => {
+                let members = named.named.iter().map(|f| f.ident.as_ref());
+                Ok(quote! {
+                    #[allow(unused_variables)]
+                    #prefix { #(#members),* } => ::core::iter::empty(),
+                })
+            }
+            Fields::Unnamed(unnamed) => {
+                let params = (0..unnamed.unnamed.len()).map(|i| format_ident!("_{}", i));
+                let args = Self::used_unnamed_fields(label)?;
+                let _ = args;
+                Ok(quote! {
+                    #prefix ( #(#params),* ) => ::core::iter::empty(),
+                })
+            }
+            Fields::Unit => Ok(quote! {
+                #prefix => ::core::iter::empty(),
+            }),
+        }
+    }
+    fn additional(&self) -> Result<Vec<TokenStream2>> {
+        self.iter()?
+            .filter_map(|config| {
+                config
+                    .map(
+                        |Config {
+                             msg,
+                             ident,
+                             fields,
+                             label,
+                             ..
+                         }| { Some((msg, ident?, fields?, label)) },
+                    )
+                    .transpose()
+            })
+            .map(|config| {
+                let (msg, ident, fields, label) = config?;
+                let label = label.or(msg).ok_or_else(|| {
+                    Error::new_spanned(
+                        &ident,
+                        "Missing label or message. Consider using `#[diag(label = \"...\")]`",
+                    )
+                })?;
+                self.additional_branch(&ident, &fields, &label)
+            })
+            .collect()
+    }
     fn impl_error_enum_branch(
         &self,
         ident: &Ident,
@@ -828,11 +885,14 @@ impl ErrorEnum {
 
         let (kind, number, code, primary_span) = self.impl_error_enum()?;
         let primary_label = self.primary_label()?;
+        let additional = self.additional()?;
         let span_type = self.span_type();
+        let option_span_type: Type = parse_quote!(::core::option::Option<#span_type>);
+        let msg_type: Type = parse_quote!(::error_enum::String);
         tokens.extend(quote! {
             impl #impl_generics ::error_enum::ErrorType for #name #ty_generics #where_clause {
                 type Span = #span_type;
-                type Message = ::std::string::String;
+                type Message = #msg_type;
 
                 fn kind(&self) -> ::error_enum::Kind {
                     match self {
@@ -854,12 +914,17 @@ impl ErrorEnum {
                         #(#primary_span)*
                     }
                 }
-                fn primary_message(&self) -> ::std::string::String {
-                    ::std::format!("{self}")
+                fn primary_message(&self) -> #msg_type {
+                    ::error_enum::format!("{self}")
                 }
-                fn primary_label(&self) -> ::std::string::String {
+                fn primary_label(&self) -> #msg_type {
                     match self {
                         #(#primary_label)*
+                    }
+                }
+                fn additional(&self) -> impl ::core::iter::Iterator<Item = (#option_span_type, #msg_type, #msg_type)> {
+                    match self {
+                        #(#additional)*
                     }
                 }
             }

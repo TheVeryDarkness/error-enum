@@ -70,13 +70,11 @@ fn main() {
     #[cfg(feature = "annotate-snippets")]
     eprintln!(
         "---------- annotate-snippets ----------\n{}",
-        error
-            .fmt_as_annotate_snippets_with_opts(annotate_snippets::display_list::FormatOptions {
-                color: true,
-                anonymized_line_numbers: false,
-                margin: None,
-            })
-            .unwrap()
+        error.fmt_as_annotate_snippets_with_opts(annotate_snippets::display_list::FormatOptions {
+            color: true,
+            anonymized_line_numbers: false,
+            margin: None,
+        })
     );
 
     #[cfg(feature = "ariadne")]

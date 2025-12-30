@@ -1,4 +1,5 @@
 use crate::{ErrorType, Kind, Span};
+use alloc::{string::String, string::ToString as _, vec::Vec};
 use codespan_reporting::{
     diagnostic::{Diagnostic, Label, LabelStyle, Severity},
     files::{Error, SimpleFiles},

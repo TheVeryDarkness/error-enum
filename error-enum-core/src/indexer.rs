@@ -1,4 +1,5 @@
-use std::{rc::Rc, sync::Arc};
+use alloc::vec::Vec;
+use alloc::{boxed::Box, rc::Rc, sync::Arc};
 use stringzilla::sz::find_newline_utf8;
 
 /// A indexable string.
@@ -83,21 +84,25 @@ impl LineIndexer {
         }
         line_starts.push(s.len());
         let line_starts = line_starts.into_boxed_slice();
-        unsafe { std::mem::transmute(line_starts) }
-    }
-    /// Allocate the [`LineIndexer`] on a custom lifetime.
-    pub fn alloc_on<'a>(self: Box<Self>, f: impl FnOnce(Box<[usize]>) -> &'a [usize]) -> &'a Self {
-        let slice: Box<[usize]> = unsafe { std::mem::transmute(self) };
-        let slice_ref: &'a [usize] = f(slice);
-        unsafe { std::mem::transmute(slice_ref) }
+        unsafe { core::mem::transmute(line_starts) }
     }
     /// Create an [`LineIndexer`] from a boxed slice.
     pub fn from_boxed_slice(slice: Box<[usize]>) -> Box<Self> {
-        unsafe { std::mem::transmute(slice) }
+        debug_assert!(slice.is_sorted(), "line endings must be sorted");
+        unsafe { core::mem::transmute(slice) }
     }
     /// Convert the [`LineIndexer`] into a boxed slice.
     pub fn into_boxed_slice(self: Box<Self>) -> Box<[usize]> {
-        unsafe { std::mem::transmute(self) }
+        unsafe { core::mem::transmute(self) }
+    }
+    /// Create an [`LineIndexer`] from a slice reference.
+    pub fn from_slice(slice: &[usize]) -> &Self {
+        debug_assert!(slice.is_sorted(), "line endings must be sorted");
+        unsafe { core::mem::transmute(slice) }
+    }
+    /// Convert the [`LineIndexer`] into a slice reference.
+    pub fn as_slice(&self) -> &[usize] {
+        unsafe { core::mem::transmute(self) }
     }
 }
 
@@ -171,5 +176,11 @@ impl Indexer for LineIndexer {
                 .min(self.0.len() - 1)]
         };
         (start, end)
+    }
+}
+
+impl AsRef<[usize]> for LineIndexer {
+    fn as_ref(&self) -> &[usize] {
+        &self.0
     }
 }

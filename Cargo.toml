@@ -54,6 +54,8 @@ panic = "deny"
 todo = "deny"
 unwrap_in_result = "deny"
 unwrap_used = "deny"
+std_instead_of_alloc = "warn"
+std_instead_of_core = "warn"
 
 [workspace.metadata.docs.rs]
 all-features = true

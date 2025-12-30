@@ -36,6 +36,26 @@ jobs:
       - uses: actions-rs/cargo@v1
         with:
           command: clippy
+          args: --workspace --all-targets --features annotate-snippets -- -D warnings
+      - uses: actions-rs/cargo@v1
+        with:
+          command: clippy
+          args: --workspace --all-targets --features ariadne -- -D warnings
+      - uses: actions-rs/cargo@v1
+        with:
+          command: clippy
+          args: --workspace --all-targets --features codespan-reporting -- -D warnings
+      - uses: actions-rs/cargo@v1
+        with:
+          command: clippy
+          args: --workspace --all-targets --features miette -- -D warnings
+      - uses: actions-rs/cargo@v1
+        with:
+          command: clippy
+          args: --workspace --all-targets --features std -- -D warnings
+      - uses: actions-rs/cargo@v1
+        with:
+          command: clippy
           args: --workspace --all-targets --all-features -- -D warnings
       - uses: actions-rs/cargo@v1
         with:
