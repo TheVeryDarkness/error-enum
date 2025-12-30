@@ -92,7 +92,7 @@ fn basic() {
             impl ::core::error::Error for FileSystemError {}
             impl ::error_enum::ErrorType for FileSystemError {
                 type Span = ::error_enum::SimpleSpan;
-                type Message = ::std::string::String;
+                type Message = ::error_enum::String;
                 fn kind(&self) -> ::error_enum::Kind {
                     match self {
                         Self::FileNotFound { .. } => ::error_enum::Kind::Error,
@@ -116,13 +116,27 @@ fn basic() {
                         }
                     }
                 }
-                fn primary_message(&self) -> ::std::string::String {
-                    ::std::format!("{self}")
+                fn primary_message(&self) -> ::error_enum::String {
+                    ::error_enum::format!("{self}")
                 }
-                fn primary_label(&self) -> ::std::string::String {
+                fn primary_label(&self) -> ::error_enum::String {
                     match self {
                         #[allow(unused_variables)]
                         Self::FileNotFound { path } => ::std::format!("{path} not found."),
+                    }
+                }
+                fn additional(
+                    &self,
+                ) -> impl ::core::iter::Iterator<
+                    Item = (
+                        ::core::option::Option<::error_enum::SimpleSpan>,
+                        ::error_enum::String,
+                        ::error_enum::String,
+                    ),
+                > {
+                    match self {
+                        #[allow(unused_variables)]
+                        Self::FileNotFound { path } => ::core::iter::empty(),
                     }
                 }
             }
@@ -169,7 +183,7 @@ fn deep() {
             impl ::core::error::Error for FileSystemError {}
             impl ::error_enum::ErrorType for FileSystemError {
                 type Span = ::error_enum::SimpleSpan;
-                type Message = ::std::string::String;
+                type Message = ::error_enum::String;
                 fn kind(&self) -> ::error_enum::Kind {
                     match self {
                         Self::AccessDenied => ::error_enum::Kind::Error,
@@ -190,12 +204,25 @@ fn deep() {
                         Self::AccessDenied => <::error_enum::SimpleSpan as ::core::default::Default>::default(),
                     }
                 }
-                fn primary_message(&self) -> ::std::string::String {
-                    ::std::format!("{self}")
+                fn primary_message(&self) -> ::error_enum::String {
+                    ::error_enum::format!("{self}")
                 }
-                fn primary_label(&self) -> ::std::string::String {
+                fn primary_label(&self) -> ::error_enum::String {
                     match self {
                         Self::AccessDenied => ::std::format!("无权限。"),
+                    }
+                }
+                fn additional(
+                    &self,
+                ) -> impl ::core::iter::Iterator<
+                    Item = (
+                        ::core::option::Option<::error_enum::SimpleSpan>,
+                        ::error_enum::String,
+                        ::error_enum::String,
+                    ),
+                > {
+                    match self {
+                        Self::AccessDenied => ::core::iter::empty(),
                     }
                 }
             }
@@ -239,7 +266,7 @@ fn nested() {
             impl ::core::error::Error for FileSystemError {}
             impl ::error_enum::ErrorType for FileSystemError {
                 type Span = ::error_enum::SimpleSpan;
-                type Message = ::std::string::String;
+                type Message = ::error_enum::String;
                 fn kind(&self) -> ::error_enum::Kind {
                     match self {
                         Self::FileError(..) => ::error_enum::Kind::Error,
@@ -263,12 +290,25 @@ fn nested() {
                         }
                     }
                 }
-                fn primary_message(&self) -> ::std::string::String {
-                    ::std::format!("{self}")
+                fn primary_message(&self) -> ::error_enum::String {
+                    ::error_enum::format!("{self}")
                 }
-                fn primary_label(&self) -> ::std::string::String {
+                fn primary_label(&self) -> ::error_enum::String {
                     match self {
                         Self::FileError(_0) => ::std::format!("{0}", _0),
+                    }
+                }
+                fn additional(
+                    &self,
+                ) -> impl ::core::iter::Iterator<
+                    Item = (
+                        ::core::option::Option<::error_enum::SimpleSpan>,
+                        ::error_enum::String,
+                        ::error_enum::String,
+                    ),
+                > {
+                    match self {
+                        Self::FileError(_0) => ::core::iter::empty(),
                     }
                 }
             }
@@ -311,7 +351,7 @@ fn escaped_braces_in_msg() {
             impl ::core::error::Error for FileSystemError {}
             impl ::error_enum::ErrorType for FileSystemError {
                 type Span = ::error_enum::SimpleSpan;
-                type Message = ::std::string::String;
+                type Message = ::error_enum::String;
                 fn kind(&self) -> ::error_enum::Kind {
                     match self {
                         Self::FileNotFound(..) => ::error_enum::Kind::Error,
@@ -335,12 +375,25 @@ fn escaped_braces_in_msg() {
                         }
                     }
                 }
-                fn primary_message(&self) -> ::std::string::String {
-                    ::std::format!("{self}")
+                fn primary_message(&self) -> ::error_enum::String {
+                    ::error_enum::format!("{self}")
                 }
-                fn primary_label(&self) -> ::std::string::String {
+                fn primary_label(&self) -> ::error_enum::String {
                     match self {
                         Self::FileNotFound(_0) => ::std::format!("{{0}} not found."),
+                    }
+                }
+                fn additional(
+                    &self,
+                ) -> impl ::core::iter::Iterator<
+                    Item = (
+                        ::core::option::Option<::error_enum::SimpleSpan>,
+                        ::error_enum::String,
+                        ::error_enum::String,
+                    ),
+                > {
+                    match self {
+                        Self::FileNotFound(_0) => ::core::iter::empty(),
                     }
                 }
             }
@@ -374,7 +427,7 @@ fn test_error_type_with_derive_input() {
             impl ::core::error::Error for ReadIntError {}
             impl ::error_enum::ErrorType for ReadIntError {
                 type Span = ::error_enum::SimpleSpan;
-                type Message = ::std::string::String;
+                type Message = ::error_enum::String;
                 fn kind(&self) -> ::error_enum::Kind {
                     match self {
                         Self::ParseIntError(..) => ::error_enum::Kind::Error,
@@ -405,13 +458,29 @@ fn test_error_type_with_derive_input() {
                         }
                     }
                 }
-                fn primary_message(&self) -> ::std::string::String {
-                    ::std::format!("{self}")
+                fn primary_message(&self) -> ::error_enum::String {
+                    ::error_enum::format!("{self}")
                 }
-                fn primary_label(&self) -> ::std::string::String {
+                fn primary_label(&self) -> ::error_enum::String {
                     match self {
-                        Self::ParseIntError(_0) => ::std::format!("Failed to parse integer from string due to: {0}", _0),
+                        Self::ParseIntError(_0) => {
+                            ::std::format!("Failed to parse integer from string due to: {0}", _0)
+                        }
                         Self::IOError(_0) => ::std::format!("Failed to read string due to: {0}", _0),
+                    }
+                }
+                fn additional(
+                    &self,
+                ) -> impl ::core::iter::Iterator<
+                    Item = (
+                        ::core::option::Option<::error_enum::SimpleSpan>,
+                        ::error_enum::String,
+                        ::error_enum::String,
+                    ),
+                > {
+                    match self {
+                        Self::ParseIntError(_0) => ::core::iter::empty(),
+                        Self::IOError(_0) => ::core::iter::empty(),
                     }
                 }
             }
@@ -434,7 +503,7 @@ fn test_error_type_with_derive_input() {
             impl ::core::error::Error for ReadIntError {}
             impl ::error_enum::ErrorType for ReadIntError {
                 type Span = ::error_enum::SimpleSpan;
-                type Message = ::std::string::String;
+                type Message = ::error_enum::String;
                 fn kind(&self) -> ::error_enum::Kind {
                     match self {
                         Self(..) => ::error_enum::Kind::Error,
@@ -456,12 +525,25 @@ fn test_error_type_with_derive_input() {
                         Self(_0) => <::error_enum::SimpleSpan as ::core::default::Default>::default(),
                     }
                 }
-                fn primary_message(&self) -> ::std::string::String {
-                    ::std::format!("{self}")
+                fn primary_message(&self) -> ::error_enum::String {
+                    ::error_enum::format!("{self}")
                 }
-                fn primary_label(&self) -> ::std::string::String {
+                fn primary_label(&self) -> ::error_enum::String {
                     match self {
                         Self(_0) => ::std::format!("Failed to read string due to: {0}", _0),
+                    }
+                }
+                fn additional(
+                    &self,
+                ) -> impl ::core::iter::Iterator<
+                    Item = (
+                        ::core::option::Option<::error_enum::SimpleSpan>,
+                        ::error_enum::String,
+                        ::error_enum::String,
+                    ),
+                > {
+                    match self {
+                        Self(_0) => ::core::iter::empty(),
                     }
                 }
             }

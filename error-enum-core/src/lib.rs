@@ -9,8 +9,7 @@
 #![no_std]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
-pub use alloc::format;
-pub use alloc::string::String;
+pub use alloc::{format, string::String};
 use core::fmt;
 pub use indexer::{Indexer, LineIndexer};
 pub use span::{SimpleSpan, Span};

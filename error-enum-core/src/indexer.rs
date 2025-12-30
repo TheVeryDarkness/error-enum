@@ -1,5 +1,4 @@
-use alloc::vec::Vec;
-use alloc::{boxed::Box, rc::Rc, sync::Arc};
+use alloc::{boxed::Box, rc::Rc, sync::Arc, vec::Vec};
 use stringzilla::sz::find_newline_utf8;
 
 /// A indexable string.
