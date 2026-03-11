@@ -29,7 +29,7 @@ mitsein = { version = "0.8.0", default-features = false }
 proc-macro2 = "1"
 prettydiff = "0.9.0"
 quote = "1"
-stringzilla = "4.4.2"
+stringzilla = "4.6.0"
 syn = { version = "2", features = ["full"] }
 
 [workspace.lints.rust]
