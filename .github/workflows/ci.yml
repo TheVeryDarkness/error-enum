@@ -9,12 +9,13 @@ jobs:
     strategy:
       matrix:
         rust: [stable, nightly]
-        os: [ubuntu-latest]
-    runs-on: ${{ matrix.os }}
+        os: [ubuntu, windows, macos]
+    runs-on: ${{ matrix.os }}-latest
     steps:
       - uses: actions/checkout@v6
       - name: Install Rust
         uses: actions-rs/toolchain@v1
+        id: install-rust
         with:
           toolchain: ${{ matrix.rust }}
           components: clippy, rustfmt
@@ -70,5 +71,6 @@ jobs:
         with:
           token: ${{ secrets.CODECOV_TOKEN }} # required for private repos or protected branches
           files: codecov.json
+          flags: ${{ steps.install-rust.outputs.toolchain }},${{ matrix.os }}
           fail_ci_if_error: true
         if: ${{ matrix.rust == 'stable' }}
