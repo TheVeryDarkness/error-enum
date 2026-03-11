@@ -9,7 +9,8 @@ jobs:
     strategy:
       matrix:
         rust: [stable, nightly]
-    runs-on: ubuntu-latest
+        os: [ubuntu-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v6
       - name: Install Rust
