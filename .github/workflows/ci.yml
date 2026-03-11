@@ -71,6 +71,6 @@ jobs:
         with:
           token: ${{ secrets.CODECOV_TOKEN }} # required for private repos or protected branches
           files: codecov.json
-          flags: ${{ steps.install-rust.outputs.toolchain }},${{ matrix.os }}
+          flags: ${{ steps.install-rust.outputs.rustc }},${{ matrix.os }}
           fail_ci_if_error: true
         if: ${{ matrix.rust == 'stable' }}
