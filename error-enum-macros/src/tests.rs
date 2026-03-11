@@ -108,12 +108,10 @@ fn basic() {
                         Self::FileNotFound { .. } => "E01",
                     }
                 }
-                fn primary_span(&self) -> ::error_enum::SimpleSpan {
+                fn primary_span(&self) -> ::core::option::Option<::error_enum::SimpleSpan> {
                     match self {
                         #[allow(unused_variables)]
-                        Self::FileNotFound { path } => {
-                            <::error_enum::SimpleSpan as ::core::default::Default>::default()
-                        }
+                        Self::FileNotFound { path } => ::core::option::Option::None,
                     }
                 }
                 fn primary_message(&self) -> ::error_enum::String {
@@ -282,12 +280,10 @@ fn nested() {
                         Self::FileError(..) => "E01",
                     }
                 }
-                fn primary_span(&self) -> ::error_enum::SimpleSpan {
+                fn primary_span(&self) -> ::core::option::Option<::error_enum::SimpleSpan> {
                     match self {
                         #[allow(unused_variables)]
-                        Self::FileError(_0) => {
-                            <::error_enum::SimpleSpan as ::core::default::Default>::default()
-                        }
+                        Self::FileError(_0) => ::core::option::Option::None,
                     }
                 }
                 fn primary_message(&self) -> ::error_enum::String {
@@ -367,12 +363,10 @@ fn escaped_braces_in_msg() {
                         Self::FileNotFound(..) => "E01",
                     }
                 }
-                fn primary_span(&self) -> ::error_enum::SimpleSpan {
+                fn primary_span(&self) -> ::core::option::Option<::error_enum::SimpleSpan> {
                     match self {
                         #[allow(unused_variables)]
-                        Self::FileNotFound(_0) => {
-                            <::error_enum::SimpleSpan as ::core::default::Default>::default()
-                        }
+                        Self::FileNotFound(_0) => ::core::option::Option::None,
                     }
                 }
                 fn primary_message(&self) -> ::error_enum::String {
