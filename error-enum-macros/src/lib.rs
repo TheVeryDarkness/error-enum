@@ -706,12 +706,14 @@ impl ErrorEnum {
         label: &LitStr,
     ) -> Result<TokenStream2> {
         let prefix = self.variant(ident);
+        let empty_iter: syn::Expr = parse_quote!(::core::iter::empty());
+        let box_type: syn::Expr = parse_quote!(::error_enum::Box);
         match fields {
             Fields::Named(named) => {
                 let members = named.named.iter().map(|f| f.ident.as_ref());
                 Ok(quote! {
                     #[allow(unused_variables)]
-                    #prefix { #(#members),* } => ::core::iter::empty(),
+                    #prefix { #(#members),* } => #box_type::new(#empty_iter),
                 })
             }
             Fields::Unnamed(unnamed) => {
@@ -719,11 +721,11 @@ impl ErrorEnum {
                 let args = Self::used_unnamed_fields(label)?;
                 let _ = args;
                 Ok(quote! {
-                    #prefix ( #(#params),* ) => ::core::iter::empty(),
+                    #prefix ( #(#params),* ) => #box_type::new(#empty_iter),
                 })
             }
             Fields::Unit => Ok(quote! {
-                #prefix => ::core::iter::empty(),
+                #prefix => #box_type::new(#empty_iter),
             }),
         }
     }
@@ -889,6 +891,8 @@ impl ErrorEnum {
         let span_type = self.span_type();
         let option_span_type: Type = parse_quote!(::core::option::Option<#span_type>);
         let msg_type: Type = parse_quote!(::error_enum::String);
+        let box_type: Type = parse_quote!(::error_enum::Box);
+        let iterator_trait: Type = parse_quote!(::core::iter::Iterator);
         tokens.extend(quote! {
             impl #impl_generics ::error_enum::ErrorType for #name #ty_generics #where_clause {
                 type Span = #span_type;
@@ -922,7 +926,7 @@ impl ErrorEnum {
                         #(#primary_label)*
                     }
                 }
-                fn additional(&self) -> impl ::core::iter::Iterator<Item = (#option_span_type, #msg_type, #msg_type)> {
+                fn additional(&self) -> #box_type<dyn #iterator_trait<Item = (#option_span_type, #msg_type, #msg_type)>> {
                     match self {
                         #(#additional)*
                     }

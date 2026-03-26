@@ -3,7 +3,7 @@
 #![expect(clippy::panic)]
 #![allow(clippy::unwrap_used)]
 
-use error_enum::{error_type, ErrorType, SimpleSpan};
+use error_enum::{error_type, ErrorType, ErrorTypeExt, SimpleSpan};
 use prettydiff::diff_lines;
 
 #[track_caller]

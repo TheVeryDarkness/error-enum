@@ -10,7 +10,7 @@ use alloc::{
     borrow::ToOwned as _,
     string::{String, ToString as _},
 };
-use error_enum::{error_type, ErrorType, SimpleSpan};
+use error_enum::{error_type, ErrorType, ErrorTypeExt, SimpleSpan};
 
 error_type! {
     /// Defined error type, will be generated as an `enum`.
