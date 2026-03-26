@@ -9,11 +9,10 @@
 #![no_std]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
-pub use alloc::{format, string::String};
+pub use alloc::{boxed::Box, format, string::String};
 use core::fmt;
 pub use indexer::{Indexer, LineIndexer};
 pub use span::{SimpleSpan, Span};
-pub use std::boxed::Box;
 
 extern crate alloc;
 #[cfg(feature = "std")]
