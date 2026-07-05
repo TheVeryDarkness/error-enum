@@ -232,10 +232,10 @@ impl Config {
                         span_type = Some(value.parse()?);
                     } else if meta.path.is_ident("note") {
                         let value: LitStr = meta.value()?.parse()?;
-                        notes.push((value, ident.cloned()));
+                        notes.push((value, None));
                     } else if meta.path.is_ident("help") {
                         let value: LitStr = meta.value()?.parse()?;
-                        helps.push((value, ident.cloned()));
+                        helps.push((value, None));
                     } else {
                         return Err(meta.error("Unknown attribute key."));
                     }
@@ -590,7 +590,7 @@ impl ErrorEnum {
             lazy_regex!(r#"(?<prefix>(^|[^\{])(\{\{)*)\{(?<index>\d+)(?<optional>:[^\{\}]*)?\}"#);
         ARG.replace_all(msg, |cap: &Captures| {
             let prefix = &cap["prefix"].replace("{", "{{");
-            let index = &cap["index"].parse::<usize>().unwrap();
+            let index = &cap["index"];
             if let Some(optional) = &cap.name("optional") {
                 format!("{}{{_{}{}}}", prefix, index, optional.as_str())
             } else {
@@ -926,6 +926,7 @@ impl ErrorEnum {
             impl #impl_generics ::error_enum::ErrorType for #name #ty_generics #where_clause {
                 type Span = #span_type;
                 type Message = #msg_type;
+                type Label = #msg_type;
 
                 fn kind(&self) -> ::error_enum::Kind {
                     match self {

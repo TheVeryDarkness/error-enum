@@ -42,8 +42,7 @@ pub(crate) fn fmt_as_annotate_snippets<T: ErrorType + ?Sized>(
             range: (primary_span.range().start, primary_span.range().end),
             label: &primary_label,
             annotation_type: kind.into(),
-        }]
-        .into(),
+        }],
         fold: true,
     }];
     let additional = error

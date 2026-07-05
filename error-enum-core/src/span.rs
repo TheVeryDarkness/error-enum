@@ -25,6 +25,11 @@ pub trait Span: Clone {
     fn source_index(&self) -> &Self::Index;
     /// Get the URI of the span.
     fn uri(&self) -> &Self::Uri;
+    /// Check if the source text of the span is shared with another span.
+    fn share_source_text(&self, other: &Self) -> bool {
+        core::ptr::eq(self.uri(), other.uri())
+            && core::ptr::eq(self.source_index(), other.source_index())
+    }
 }
 
 /// A simple implementation of [`Span`].

@@ -30,6 +30,17 @@ mod codespan_reporting_impl;
 #[cfg(feature = "miette")]
 mod miette_impl;
 
+/// Iterator over additional diagnostics of an [`ErrorType`].
+pub type IterAdditional<T> = Box<
+    dyn Iterator<
+        Item = (
+            Option<<T as ErrorType>::Span>,
+            <T as ErrorType>::Message,
+            <T as ErrorType>::Label,
+        ),
+    >,
+>;
+
 /// Enum representing the kind of an error.
 #[derive(Clone, Copy, Default)]
 pub enum Kind {
@@ -61,6 +72,8 @@ pub trait ErrorType: core::error::Error {
     type Span: Span + Default;
     /// The message type associated with the error type.
     type Message: fmt::Display;
+    /// The label type associated with the error type.
+    type Label: fmt::Display;
 
     /// Get the kind of the error.
     fn kind(&self) -> Kind;
@@ -76,10 +89,10 @@ pub trait ErrorType: core::error::Error {
     /// Get the primary message of the error.
     fn primary_message(&self) -> Self::Message;
     /// Get the primary label of the error.
-    fn primary_label(&self) -> Self::Message;
+    fn primary_label(&self) -> Self::Label;
 
     /// Get the primary diagnostic of the error.
-    fn primary(&self) -> (Option<Self::Span>, Self::Message, Self::Message) {
+    fn primary(&self) -> (Option<Self::Span>, Self::Message, Self::Label) {
         (
             self.primary_span(),
             self.primary_message(),
@@ -88,14 +101,13 @@ pub trait ErrorType: core::error::Error {
     }
 
     /// Get additional spans, messages, and labels of the error.
-    fn additional(
-        &self,
-    ) -> Box<dyn Iterator<Item = (Option<Self::Span>, Self::Message, Self::Message)>>;
+    fn additional(&self) -> IterAdditional<Self>;
 }
 
 impl<T: ErrorType + ?Sized> ErrorType for &T {
     type Span = T::Span;
     type Message = T::Message;
+    type Label = T::Label;
 
     #[inline]
     fn kind(&self) -> Kind {
@@ -118,19 +130,17 @@ impl<T: ErrorType + ?Sized> ErrorType for &T {
         (*self).primary_message()
     }
     #[inline]
-    fn primary_label(&self) -> Self::Message {
+    fn primary_label(&self) -> Self::Label {
         (*self).primary_label()
     }
 
     #[inline]
-    fn primary(&self) -> (Option<Self::Span>, Self::Message, Self::Message) {
+    fn primary(&self) -> (Option<Self::Span>, Self::Message, Self::Label) {
         (*self).primary()
     }
 
     #[inline]
-    fn additional(
-        &self,
-    ) -> Box<dyn Iterator<Item = (Option<Self::Span>, Self::Message, Self::Message)>> {
+    fn additional(&self) -> IterAdditional<Self> {
         (*self).additional()
     }
 }

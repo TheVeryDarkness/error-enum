@@ -93,6 +93,7 @@ fn basic() {
             impl ::error_enum::ErrorType for FileSystemError {
                 type Span = ::error_enum::SimpleSpan;
                 type Message = ::error_enum::String;
+                type Label = ::error_enum::String;
                 fn kind(&self) -> ::error_enum::Kind {
                     match self {
                         Self::FileNotFound { .. } => ::error_enum::Kind::Error,
@@ -184,6 +185,7 @@ fn deep() {
             impl ::error_enum::ErrorType for FileSystemError {
                 type Span = ::error_enum::SimpleSpan;
                 type Message = ::error_enum::String;
+                type Label = ::error_enum::String;
                 fn kind(&self) -> ::error_enum::Kind {
                     match self {
                         Self::AccessDenied => ::error_enum::Kind::Error,
@@ -269,6 +271,7 @@ fn nested() {
             impl ::error_enum::ErrorType for FileSystemError {
                 type Span = ::error_enum::SimpleSpan;
                 type Message = ::error_enum::String;
+                type Label = ::error_enum::String;
                 fn kind(&self) -> ::error_enum::Kind {
                     match self {
                         Self::FileError(..) => ::error_enum::Kind::Error,
@@ -354,6 +357,7 @@ fn escaped_braces_in_msg() {
             impl ::error_enum::ErrorType for FileSystemError {
                 type Span = ::error_enum::SimpleSpan;
                 type Message = ::error_enum::String;
+                type Label = ::error_enum::String;
                 fn kind(&self) -> ::error_enum::Kind {
                     match self {
                         Self::FileNotFound(..) => ::error_enum::Kind::Error,
@@ -438,6 +442,7 @@ fn test_error_type_with_derive_input() {
             impl ::error_enum::ErrorType for ReadIntError {
                 type Span = ::error_enum::SimpleSpan;
                 type Message = ::error_enum::String;
+                type Label = ::error_enum::String;
                 fn kind(&self) -> ::error_enum::Kind {
                     match self {
                         Self::ParseIntError(..) => ::error_enum::Kind::Error,
@@ -534,6 +539,7 @@ fn test_error_type_with_derive_input() {
             impl<'a> ::error_enum::ErrorType for ReadIntError<'a> {
                 type Span = ::error_enum::SimpleSpan;
                 type Message = ::error_enum::String;
+                type Label = ::error_enum::String;
                 fn kind(&self) -> ::error_enum::Kind {
                     match self {
                         Self(..) => ::error_enum::Kind::Error,
@@ -638,6 +644,7 @@ fn test_error_type_with_derive_input() {
             impl<'a> ::error_enum::ErrorType for ParseIntError<'a> {
                 type Span = ::error_enum::SimpleSpan;
                 type Message = ::error_enum::String;
+                type Label = ::error_enum::String;
                 fn kind(&self) -> ::error_enum::Kind {
                     match self {
                         Self { .. } => ::error_enum::Kind::Error,

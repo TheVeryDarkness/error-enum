@@ -3,7 +3,7 @@
 #![expect(clippy::std_instead_of_core)]
 
 use error_enum::ErrorType;
-use std::io;
+use std::{io, path::PathBuf};
 
 #[derive(Debug, ErrorType)]
 enum ReadIntError {
@@ -11,6 +11,12 @@ enum ReadIntError {
     ParseIntError(std::num::ParseIntError),
     #[diag(msg = "Failed to read string due to: {0}")]
     IOError(io::Error),
+    #[diag(msg = "{error}")]
+    #[diag(help = "canonicalizing {path:?}")]
+    CanonicalizeError {
+        path: PathBuf,
+        error: std::io::Error,
+    },
 }
 
 #[derive(Debug, ErrorType)]
@@ -26,4 +32,10 @@ fn main() {
 
     let simple_io_error = IOError(io::Error::new(io::ErrorKind::NotFound, "file not found"));
     println!("Simple IOError: {}", simple_io_error);
+
+    let canonicalize_error = ReadIntError::CanonicalizeError {
+        path: PathBuf::from("path/to/file"),
+        error: io::Error::new(io::ErrorKind::NotFound, "file not found"),
+    };
+    println!("CanonicalizeError: {}", canonicalize_error);
 }
