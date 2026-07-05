@@ -198,9 +198,9 @@ enum PendingItem {
 impl PendingItem {
     const fn order(&self) -> usize {
         match self {
-            Self::Note { order, .. } | Self::Help { order, .. } | Self::SecondaryLabel { order, .. } => {
-                *order
-            }
+            Self::Note { order, .. }
+            | Self::Help { order, .. }
+            | Self::SecondaryLabel { order, .. } => *order,
         }
     }
 }
@@ -281,9 +281,7 @@ impl Config {
         pending: &mut Vec<PendingItem>,
     ) -> Result<()> {
         if meta.input.peek(Token![=]) {
-            return Err(meta.error(
-                "use `#[diag(label(\"...\"))]` for secondary labels on fields",
-            ));
+            return Err(meta.error("use `#[diag(label(\"...\"))]` for secondary labels on fields"));
         }
         let content;
         syn::parenthesized!(content in meta.input);
@@ -310,7 +308,9 @@ impl Config {
                 "Missing label or message. Consider using `#[diag(label = \"...\")]`",
             )
         })?;
-        let primary_field = span_field.cloned().unwrap_or_else(|| format_ident!("_primary"));
+        let primary_field = span_field
+            .cloned()
+            .unwrap_or_else(|| format_ident!("_primary"));
         let mut primary_labels = vec![LabelEntry {
             field: primary_field,
             text: primary_text,
@@ -327,9 +327,11 @@ impl Config {
                     label_override,
                     order,
                 } => {
-                    let anchor = field
-                        .clone()
-                        .unwrap_or_else(|| span_field.cloned().unwrap_or_else(|| format_ident!("_primary")));
+                    let anchor = field.clone().unwrap_or_else(|| {
+                        span_field
+                            .cloned()
+                            .unwrap_or_else(|| format_ident!("_primary"))
+                    });
                     let label_text = label_override.unwrap_or_else(|| message.clone());
                     units.push(SubDiagnosticUnit {
                         kind: SubDiagKind::Note,
@@ -349,9 +351,11 @@ impl Config {
                     label_override,
                     order,
                 } => {
-                    let anchor = field
-                        .clone()
-                        .unwrap_or_else(|| span_field.cloned().unwrap_or_else(|| format_ident!("_primary")));
+                    let anchor = field.clone().unwrap_or_else(|| {
+                        span_field
+                            .cloned()
+                            .unwrap_or_else(|| format_ident!("_primary"))
+                    });
                     let label_text = label_override.unwrap_or_else(|| message.clone());
                     units.push(SubDiagnosticUnit {
                         kind: SubDiagKind::Help,
@@ -370,11 +374,7 @@ impl Config {
                         .iter_mut()
                         .find(|unit| unit.field.as_ref() == Some(&field))
                     {
-                        if unit
-                            .labels
-                            .iter()
-                            .any(|entry| entry.field != field)
-                        {
+                        if unit.labels.iter().any(|entry| entry.field != field) {
                             return Err(Error::new_spanned(
                                 &field,
                                 "additional labels on a note/help must use the same field",
@@ -959,7 +959,9 @@ impl ErrorEnum {
                              span_field,
                              pending,
                              ..
-                         }| Some((msg, ident?, fields?, label, span_field, pending)),
+                         }| {
+                            Some((msg, ident?, fields?, label, span_field, pending))
+                        },
                     )
                     .transpose()
             })
@@ -1007,11 +1009,7 @@ impl ErrorEnum {
             }),
         }
     }
-    fn additional_unit_tokens(
-        &self,
-        unit: &SubDiagnosticUnit,
-        unnamed: bool,
-    ) -> TokenStream2 {
+    fn additional_unit_tokens(&self, unit: &SubDiagnosticUnit, unnamed: bool) -> TokenStream2 {
         let spanless = unit.field.is_none();
         let labels = self.label_vec1_codegen(&unit.labels, unnamed, spanless);
         let message = &unit.message;
@@ -1082,7 +1080,9 @@ impl ErrorEnum {
                              span_field,
                              pending,
                              ..
-                         }| Some((ident?, fields?, msg, label, span_field, pending)),
+                         }| {
+                            Some((ident?, fields?, msg, label, span_field, pending))
+                        },
                     )
                     .transpose()
             })

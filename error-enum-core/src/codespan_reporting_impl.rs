@@ -1,5 +1,8 @@
-use crate::{labels::group_labels_by_source, AdditionalKind, ErrorType, Kind, Span};
-use alloc::{format, string::{String, ToString as _}, vec::Vec};
+use crate::{labels::group_labels_by_source, ErrorType, Kind, Span};
+use alloc::{
+    string::{String, ToString as _},
+    vec::Vec,
+};
 use codespan_reporting::{
     diagnostic::{Diagnostic, Label, LabelStyle, Severity},
     files::{Error, SimpleFiles},
@@ -48,7 +51,7 @@ pub(crate) fn to_codespan_diagnostic<T: ErrorType + ?Sized>(
         ordered.push((order, span, label.to_string()));
         order += 1;
     }
-    for (message, unit_labels, kind) in value.additional() {
+    for (message, unit_labels, _kind) in value.additional() {
         let message = message.to_string();
         let mut has_real_span = false;
         for (span, label) in unit_labels.iter().cloned() {
@@ -61,16 +64,10 @@ pub(crate) fn to_codespan_diagnostic<T: ErrorType + ?Sized>(
         }
         if has_real_span {
             if !message.is_empty() && message != unit_labels.first().1.to_string() {
-                notes.push(match kind {
-                    AdditionalKind::Note => message,
-                    AdditionalKind::Help => format!("help: {message}"),
-                });
+                notes.push(message);
             }
         } else {
-            notes.push(match kind {
-                AdditionalKind::Note => message,
-                AdditionalKind::Help => format!("help: {message}"),
-            });
+            notes.push(message);
         }
     }
     let groups = group_labels_by_source(ordered);

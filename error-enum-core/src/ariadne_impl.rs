@@ -1,5 +1,8 @@
 use crate::{AdditionalKind, ErrorType, Kind, Span};
-use alloc::{string::{String, ToString as _}, vec::Vec};
+use alloc::{
+    string::{String, ToString as _},
+    vec::Vec,
+};
 use ariadne::{Config, Label, Report, ReportKind};
 use core::fmt;
 use std::io;

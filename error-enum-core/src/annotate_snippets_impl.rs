@@ -1,6 +1,5 @@
 use crate::{labels::group_labels_by_source, AdditionalKind, ErrorType, Kind, Span};
 use alloc::{
-    format,
     string::{String, ToString as _},
     vec::Vec,
 };
@@ -35,34 +34,34 @@ pub(crate) fn fmt_as_annotate_snippets<T: ErrorType + ?Sized>(
         annotation_type: kind.into(),
     };
     let title = Some(title);
-    let mut footer_messages = Vec::new();
-    let mut ordered_labels: Vec<(usize, T::Span, String)> = Vec::new();
+    let mut footer_entries: Vec<(String, AdditionalKind)> = Vec::new();
+    let mut ordered_labels: Vec<(usize, T::Span, (String, AnnotationType))> = Vec::new();
     let mut order = 0usize;
     for (span, label) in primary_labels.iter().cloned() {
-        ordered_labels.push((order, span, label.to_string()));
+        ordered_labels.push((order, span, (label.to_string(), kind.into())));
         order += 1;
     }
     for (message, labels, additional_kind) in error.additional() {
         let message = message.to_string();
-        let mut footer = message.clone();
-        if matches!(additional_kind, AdditionalKind::Help) && !footer.is_empty() {
-            footer = format!("help: {footer}");
-        }
+        let additional_annotation_type = match additional_kind {
+            AdditionalKind::Note => AnnotationType::Note,
+            AdditionalKind::Help => AnnotationType::Help,
+        };
         let mut has_real_span = false;
         for (span, label) in labels.iter().cloned() {
             if is_placeholder_span(&span) {
                 continue;
             }
             has_real_span = true;
-            ordered_labels.push((order, span, label.to_string()));
+            ordered_labels.push((order, span, (label.to_string(), additional_annotation_type)));
             order += 1;
         }
         if has_real_span {
             if !message.is_empty() && message != labels.first().1.to_string() {
-                footer_messages.push(footer);
+                footer_entries.push((message, additional_kind));
             }
-        } else if !footer.is_empty() {
-            footer_messages.push(footer);
+        } else if !message.is_empty() {
+            footer_entries.push((message, additional_kind));
         }
     }
     let groups = group_labels_by_source(ordered_labels);
@@ -73,10 +72,10 @@ pub(crate) fn fmt_as_annotate_snippets<T: ErrorType + ?Sized>(
         let annotations: Vec<SourceAnnotation> = group
             .entries
             .iter()
-            .map(|(span, label)| SourceAnnotation {
+            .map(|(span, (label, annotation_type))| SourceAnnotation {
                 range: (span.range().start, span.range().end),
                 label: label.as_str(),
-                annotation_type: kind.into(),
+                annotation_type: *annotation_type,
             })
             .collect();
         stored_origins.push(group.source.uri().to_string());
@@ -91,12 +90,15 @@ pub(crate) fn fmt_as_annotate_snippets<T: ErrorType + ?Sized>(
             fold: true,
         });
     }
-    let footer = footer_messages
+    let footer = footer_entries
         .iter()
-        .map(|message| Annotation {
+        .map(|(message, additional_kind)| Annotation {
             id: None,
             label: Some(message.as_str()),
-            annotation_type: AnnotationType::Note,
+            annotation_type: match additional_kind {
+                AdditionalKind::Note => AnnotationType::Note,
+                AdditionalKind::Help => AnnotationType::Help,
+            },
         })
         .collect();
     let snippet = Snippet {

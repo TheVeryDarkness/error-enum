@@ -3,8 +3,8 @@
 #![expect(clippy::panic)]
 #![allow(clippy::unwrap_used)]
 
-use error_enum_core::{ErrorType, ErrorTypeExt, Kind, LabelVec1, SimpleSpan, vec1};
 use core::fmt;
+use error_enum_core::{vec1, ErrorType, ErrorTypeExt, Kind, LabelVec1, SimpleSpan};
 
 #[derive(Debug)]
 struct MultiLabelError {
@@ -42,9 +42,7 @@ impl ErrorType for MultiLabelError {
     fn primary_labels(&self) -> LabelVec1<Self::Span, Self::Label> {
         self.labels.clone()
     }
-    fn additional(
-        &self,
-    ) -> error_enum_core::IterAdditional<Self> {
+    fn additional(&self) -> error_enum_core::IterAdditional<Self> {
         Box::new([].into_iter())
     }
 }
@@ -76,10 +74,8 @@ fn annotate_snippets_orders_sources_by_declaration() {
 
     let first = SimpleSpan::new("first.rs", "aaa", 0, 1);
     let second = SimpleSpan::new("second.rs", "bbb", 0, 1);
-    let labels: LabelVec1<SimpleSpan, String> = vec1![
-        (first, "on first".into()),
-        (second, "on second".into()),
-    ];
+    let labels: LabelVec1<SimpleSpan, String> =
+        vec1![(first, "on first".into()), (second, "on second".into()),];
     let error = MultiLabelError { labels };
     let output = error.fmt_as_annotate_snippets_with_opts(FormatOptions::default());
     let first_pos = output.find("first.rs").expect("first.rs slice");

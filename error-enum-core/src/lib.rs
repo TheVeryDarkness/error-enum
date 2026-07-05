@@ -109,10 +109,7 @@ pub trait ErrorType: core::error::Error {
     fn primary_labels(&self) -> LabelVec1<Self::Span, Self::Label>;
 
     /// Get the primary diagnostic of the error.
-    fn primary(&self) -> (
-        Self::Message,
-        LabelVec1<Self::Span, Self::Label>,
-    ) {
+    fn primary(&self) -> (Self::Message, LabelVec1<Self::Span, Self::Label>) {
         (self.primary_message(), self.primary_labels())
     }
 
@@ -154,10 +151,7 @@ impl<T: ErrorType + ?Sized> ErrorType for &T {
     }
 
     #[inline]
-    fn primary(&self) -> (
-        Self::Message,
-        LabelVec1<Self::Span, Self::Label>,
-    ) {
+    fn primary(&self) -> (Self::Message, LabelVec1<Self::Span, Self::Label>) {
         (*self).primary()
     }
 
@@ -188,6 +182,17 @@ impl<T: ErrorType + ?Sized> ErrorType for &T {
 /// [annotate-snippets] fully supports multi-source labels. [codespan-reporting] registers one
 /// file per distinct source. [ariadne] deduplicates sources in its cache. [miette] collects all
 /// labeled spans in declaration order.
+///
+/// ### Note vs help
+///
+/// | Backend              | Note                                             | Help                                            |
+/// | -------------------- | ------------------------------------------------ | ----------------------------------------------- |
+/// | [annotate-snippets]  | `AnnotationType::Note` on footer and span labels | `AnnotationType::Help`                          |
+/// | [ariadne]            | `with_note`                                      | `with_help`                                     |
+/// | [codespan-reporting] | `Diagnostic::notes` (`=` bullet)                 | same as note (no separate help channel)         |
+/// | [miette]             | spanless notes are not rendered (no note API)    | `Diagnostic::help` (handler adds its own label) |
+///
+/// User-provided messages are never prefixed with `note:` or `help:` by this crate.
 ///
 /// [annotate-snippets]: https://docs.rs/annotate-snippets/0.9.1/annotate_snippets/
 /// [ariadne]: https://docs.rs/ariadne/0.6.0/ariadne/

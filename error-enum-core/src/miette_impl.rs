@@ -1,7 +1,6 @@
 use crate::{AdditionalKind, ErrorType, Indexer, Kind, Span};
 use alloc::{
     boxed::Box,
-    format,
     string::{String, ToString as _},
     vec::Vec,
 };
@@ -15,10 +14,7 @@ pub(crate) struct Wrapper<'a, T: ?Sized, S>(&'a T, SpanWrapper<S>);
 
 impl<'a, T: ErrorType<Span = S> + ?Sized, S: Span + Default> Wrapper<'a, T, S> {
     pub(crate) fn new(value: &'a T) -> Self {
-        Self(
-            value,
-            SpanWrapper(value.primary_span().unwrap_or_default()),
-        )
+        Self(value, SpanWrapper(value.primary_span().unwrap_or_default()))
     }
 }
 
@@ -97,19 +93,13 @@ impl<T: ErrorType + ?Sized, S: Span + Send + Sync> Diagnostic for Wrapper<'_, T,
     }
     fn help<'a>(&'a self) -> Option<Box<dyn fmt::Display + 'a>> {
         let mut parts = Vec::new();
-        for (message, labels, kind) in self.0.additional() {
-            if labels.iter().all(|(span, _)| is_placeholder_span(span)) {
-                match kind {
-                    AdditionalKind::Note if !message.to_string().is_empty() => {
-                        parts.push(message.to_string());
-                    }
-                    AdditionalKind::Help if !message.to_string().is_empty() => {
-                        parts.push(format!("help: {message}"));
-                    }
-                    AdditionalKind::Note | AdditionalKind::Help => {}
-                }
-            } else if matches!(kind, AdditionalKind::Help) && !message.to_string().is_empty() {
-                parts.push(format!("help: {message}"));
+        for (message, _labels, kind) in self.0.additional() {
+            if !matches!(kind, AdditionalKind::Help) {
+                continue;
+            }
+            let message = message.to_string();
+            if !message.is_empty() {
+                parts.push(message);
             }
         }
         if parts.is_empty() {
