@@ -9,7 +9,7 @@
 
 use alloc::borrow::Cow;
 use either::Either;
-use lazy_regex::{lazy_regex, Lazy, Regex};
+use lazy_regex::{lazy_regex, Captures, Lazy, Regex};
 use proc_macro::TokenStream;
 use proc_macro2::{Span, TokenStream as TokenStream2};
 use quote::{format_ident, quote, ToTokens};
@@ -585,21 +585,18 @@ impl ErrorEnum {
             })
             .collect()
     }
-    fn used_unnamed_fields(msg: &LitStr) -> Result<Vec<Ident>> {
-        static ARG: Lazy<Regex> = lazy_regex!(r#"(^|[^\{])(\{\{)*\{(?<index>\d+)(:[^\{\}]*)?\}"#);
-        ARG.captures_iter(msg.value().as_str())
-            .map(|cap| {
-                let index = cap
-                    .name("index")
-                    .ok_or_else(|| Error::new_spanned(msg, "Invalid argument index."))?
-                    .as_str()
-                    .parse::<usize>()
-                    .map_err(|err| {
-                        Error::new_spanned(msg, format!("Invalid argument index: {err}"))
-                    })?;
-                Ok(format_ident!("_{}", index))
-            })
-            .collect()
+    fn process_unnamed_fields(msg: &str) -> Cow<'_, str> {
+        static ARG: Lazy<Regex> =
+            lazy_regex!(r#"(?<prefix>(^|[^\{])(\{\{)*)\{(?<index>\d+)(?<optional>:[^\{\}]*)?\}"#);
+        ARG.replace_all(msg, |cap: &Captures| {
+            let prefix = &cap["prefix"].replace("{", "{{");
+            let index = &cap["index"].parse::<usize>().unwrap();
+            if let Some(optional) = &cap.name("optional") {
+                format!("{}{{_{}{}}}", prefix, index, optional.as_str())
+            } else {
+                format!("{}{{_{}}}", prefix, index)
+            }
+        })
     }
     fn display_branch(&self, ident: &Ident, fields: &Fields, msg: &LitStr) -> Result<TokenStream2> {
         let prefix = self.variant(ident);
@@ -613,9 +610,10 @@ impl ErrorEnum {
             }
             Fields::Unnamed(unnamed) => {
                 let params = (0..unnamed.unnamed.len()).map(|i| format_ident!("_{}", i));
-                let args = Self::used_unnamed_fields(msg)?;
+                let msg = msg.value();
+                let msg = Self::process_unnamed_fields(&msg);
                 Ok(quote! {
-                    #prefix ( #(#params),* ) => ::core::write!(f, #msg #(, #args)* ),
+                    #prefix ( #(#params),* ) => ::core::write!(f, #msg),
                 })
             }
             Fields::Unit => Ok(quote! {
@@ -663,9 +661,10 @@ impl ErrorEnum {
             }
             Fields::Unnamed(unnamed) => {
                 let params = (0..unnamed.unnamed.len()).map(|i| format_ident!("_{}", i));
-                let args = Self::used_unnamed_fields(label)?;
+                let label = label.value();
+                let label = Self::process_unnamed_fields(&label);
                 Ok(quote! {
-                    #prefix ( #(#params),* ) => ::error_enum::format!(#label #(, #args)* ),
+                    #prefix ( #(#params),* ) => ::error_enum::format!(#label),
                 })
             }
             Fields::Unit => Ok(quote! {
@@ -704,7 +703,6 @@ impl ErrorEnum {
         &self,
         ident: &Ident,
         fields: &Fields,
-        label: &LitStr,
         notes: &[(LitStr, Option<Ident>)],
         helps: &[(LitStr, Option<Ident>)],
     ) -> Result<TokenStream2> {
@@ -736,8 +734,9 @@ impl ErrorEnum {
             }
             Fields::Unnamed(unnamed) => {
                 let params = (0..unnamed.unnamed.len()).map(|i| format_ident!("_{}", i));
-                let args = Self::used_unnamed_fields(label)?;
                 let additional = notes.iter().chain(helps.iter()).map(|(note, span)| {
+                    let note = note.value();
+                    let note = Self::process_unnamed_fields(&note);
                     let span = span
                         .as_ref()
                         .map(|s| quote! { ::core::option::Option::Some(<#span_type as ::core::convert::From<_>>::from(#s)) })
@@ -745,8 +744,8 @@ impl ErrorEnum {
                     quote! {
                         (
                             #span,
-                            ::error_enum::format!(#note #(, #args)* ),
-                            ::error_enum::format!(#note #(, #args)* ),
+                            ::error_enum::format!(#note),
+                            ::error_enum::format!(#note),
                         ),
                     }
                 });
@@ -767,28 +766,18 @@ impl ErrorEnum {
                 config
                     .map(
                         |Config {
-                             msg,
                              ident,
                              fields,
-                             label,
                              notes,
                              helps,
                              ..
-                         }| {
-                            Some((msg, ident?, fields?, label, notes, helps))
-                        },
+                         }| { Some((ident?, fields?, notes, helps)) },
                     )
                     .transpose()
             })
             .map(|config| {
-                let (msg, ident, fields, label, notes, helps) = config?;
-                let label = label.or(msg).ok_or_else(|| {
-                    Error::new_spanned(
-                        &ident,
-                        "Missing label or message. Consider using `#[diag(label = \"...\")]`",
-                    )
-                })?;
-                self.additional_branch(&ident, &fields, &label, &notes, &helps)
+                let (ident, fields, notes, helps) = config?;
+                self.additional_branch(&ident, &fields, &notes, &helps)
             })
             .collect()
     }

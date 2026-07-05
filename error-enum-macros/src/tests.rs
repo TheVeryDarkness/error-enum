@@ -261,7 +261,7 @@ fn nested() {
             impl ::core::fmt::Display for FileSystemError {
                 fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
                     match self {
-                        Self::FileError(_0) => ::core::write!(f, "{0}", _0),
+                        Self::FileError(_0) => ::core::write!(f, "{_0}"),
                     }
                 }
             }
@@ -295,7 +295,7 @@ fn nested() {
                 }
                 fn primary_label(&self) -> ::error_enum::String {
                     match self {
-                        Self::FileError(_0) => ::error_enum::format!("{0}", _0),
+                        Self::FileError(_0) => ::error_enum::format!("{_0}"),
                     }
                 }
                 fn additional(
@@ -413,8 +413,14 @@ fn test_error_type_with_derive_input() {
                 #[diag(msg = "Failed to parse integer from string due to: {0}")]
                 ParseIntError(std::num::ParseIntError),
                 #[diag(number = "01")]
-                #[diag(msg = "Failed to read string due to: {0}")]
-                IOError(std::io::Error),
+                #[diag(msg = "Failed to read string due to: {2}")]
+                IOError(
+                    #[diag(span)]
+                    SimpleSpan,
+                    #[diag(note = "consider reformatting the token here")]
+                    SimpleSpan,
+                    std::io::Error,
+                ),
             }
         },
         quote! {
@@ -422,9 +428,9 @@ fn test_error_type_with_derive_input() {
                 fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
                     match self {
                         Self::ParseIntError(_0) => {
-                            ::core::write!(f, "Failed to parse integer from string due to: {0}", _0)
+                            ::core::write!(f, "Failed to parse integer from string due to: {_0}")
                         }
-                        Self::IOError(_0) => ::core::write!(f, "Failed to read string due to: {0}", _0),
+                        Self::IOError(_0, _1, _2) => ::core::write!(f, "Failed to read string due to: {_2}"),
                     }
                 }
             }
@@ -455,7 +461,11 @@ fn test_error_type_with_derive_input() {
                         #[allow(unused_variables)]
                         Self::ParseIntError(_0) => ::core::option::Option::None,
                         #[allow(unused_variables)]
-                        Self::IOError(_0) => ::core::option::Option::None,
+                        Self::IOError(_0, _1, _2) => {
+                            ::core::option::Option::Some(<::error_enum::SimpleSpan as ::core::convert::From<
+                                _,
+                            >>::from(_0))
+                        }
                     }
                 }
                 fn primary_message(&self) -> ::error_enum::String {
@@ -464,9 +474,9 @@ fn test_error_type_with_derive_input() {
                 fn primary_label(&self) -> ::error_enum::String {
                     match self {
                         Self::ParseIntError(_0) => {
-                            ::error_enum::format!("Failed to parse integer from string due to: {0}", _0)
+                            ::error_enum::format!("Failed to parse integer from string due to: {_0}")
                         }
-                        Self::IOError(_0) => ::error_enum::format!("Failed to read string due to: {0}", _0),
+                        Self::IOError(_0, _1, _2) => ::error_enum::format!("Failed to read string due to: {_2}"),
                     }
                 }
                 fn additional(
@@ -482,7 +492,16 @@ fn test_error_type_with_derive_input() {
                 > {
                     match self {
                         Self::ParseIntError(_0) => ::error_enum::Box::new([].into_iter()),
-                        Self::IOError(_0) => ::error_enum::Box::new([].into_iter()),
+                        Self::IOError(_0, _1, _2) => ::error_enum::Box::new(
+                            [(
+                                ::core::option::Option::Some(
+                                    <::error_enum::SimpleSpan as ::core::convert::From<_>>::from(_1),
+                                ),
+                                ::error_enum::format!("consider reformatting the token here"),
+                                ::error_enum::format!("consider reformatting the token here"),
+                            )]
+                            .into_iter(),
+                        ),
                     }
                 }
             }
@@ -493,13 +512,21 @@ fn test_error_type_with_derive_input() {
             #[derive(Debug, ErrorType)]
             #[diag(msg = "Failed to read an integer due to: {1}")]
             #[diag(note = "Got a string {0:?}")]
-            struct ReadIntError<'a>(&'a str, std::io::Error);
+            struct ReadIntError<'a>(
+                #[diag(help = "consider reformatting the token {0:?}")]
+                &'a str,
+                std::io::Error,
+                #[diag(span)]
+                SimpleSpan,
+                #[diag(note = "consider reformatting the token {0:?}")]
+                SimpleSpan,
+            );
         },
         quote! {
             impl<'a> ::core::fmt::Display for ReadIntError<'a> {
                 fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
                     match self {
-                        Self(_0, _1) => ::core::write!(f, "Failed to read an integer due to: {1}", _1),
+                        Self(_0, _1, _2, _3) => ::core::write!(f, "Failed to read an integer due to: {_1}"),
                     }
                 }
             }
@@ -525,7 +552,11 @@ fn test_error_type_with_derive_input() {
                 fn primary_span(&self) -> ::core::option::Option<::error_enum::SimpleSpan> {
                     match self {
                         #[allow(unused_variables)]
-                        Self(_0, _1) => ::core::option::Option::None,
+                        Self(_0, _1, _2, _3) => {
+                            ::core::option::Option::Some(<::error_enum::SimpleSpan as ::core::convert::From<
+                                _,
+                            >>::from(_2))
+                        }
                     }
                 }
                 fn primary_message(&self) -> ::error_enum::String {
@@ -533,7 +564,7 @@ fn test_error_type_with_derive_input() {
                 }
                 fn primary_label(&self) -> ::error_enum::String {
                     match self {
-                        Self(_0, _1) => ::error_enum::format!("Failed to read an integer due to: {1}", _1),
+                        Self(_0, _1, _2, _3) => ::error_enum::format!("Failed to read an integer due to: {_1}"),
                     }
                 }
                 fn additional(
@@ -548,12 +579,28 @@ fn test_error_type_with_derive_input() {
                     >,
                 > {
                     match self {
-                        Self(_0, _1) => ::error_enum::Box::new(
-                            [(
-                                ::core::option::Option::None,
-                                ::error_enum::format!("Got a string {0:?}", _1),
-                                ::error_enum::format!("Got a string {0:?}", _1),
-                            )]
+                        Self(_0, _1, _2, _3) => ::error_enum::Box::new(
+                            [
+                                (
+                                    ::core::option::Option::None,
+                                    ::error_enum::format!("Got a string {_0:?}"),
+                                    ::error_enum::format!("Got a string {_0:?}"),
+                                ),
+                                (
+                                    ::core::option::Option::Some(
+                                        <::error_enum::SimpleSpan as ::core::convert::From<_>>::from(_3),
+                                    ),
+                                    ::error_enum::format!("consider reformatting the token {_0:?}"),
+                                    ::error_enum::format!("consider reformatting the token {_0:?}"),
+                                ),
+                                (
+                                    ::core::option::Option::Some(
+                                        <::error_enum::SimpleSpan as ::core::convert::From<_>>::from(_0),
+                                    ),
+                                    ::error_enum::format!("consider reformatting the token {_0:?}"),
+                                    ::error_enum::format!("consider reformatting the token {_0:?}"),
+                                ),
+                            ]
                             .into_iter(),
                         ),
                     }

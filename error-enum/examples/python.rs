@@ -28,6 +28,8 @@ error_type! {
                 String,
                 #[diag(span)]
                 SimpleSpan,
+                #[diag(help = "consider reformatting the token `{0}`")]
+                SimpleSpan,
             )
         },
         #[diag(kind = "Error")]
