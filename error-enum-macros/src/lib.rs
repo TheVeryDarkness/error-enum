@@ -156,15 +156,53 @@ impl ToTokens for Kind {
 enum SubDiagKind {
     Note,
     Help,
-    Label,
 }
 
 #[derive(Clone)]
-struct SubDiagnostic {
+struct LabelEntry {
+    field: Ident,
+    text: LitStr,
+    order: usize,
+}
+
+#[derive(Clone)]
+struct SubDiagnosticUnit {
     kind: SubDiagKind,
     message: LitStr,
-    label: Option<LitStr>,
-    span: Option<Ident>,
+    field: Option<Ident>,
+    labels: Vec<LabelEntry>,
+    order: usize,
+}
+
+#[derive(Clone)]
+enum PendingItem {
+    Note {
+        field: Option<Ident>,
+        message: LitStr,
+        label_override: Option<LitStr>,
+        order: usize,
+    },
+    Help {
+        field: Option<Ident>,
+        message: LitStr,
+        label_override: Option<LitStr>,
+        order: usize,
+    },
+    SecondaryLabel {
+        field: Ident,
+        text: LitStr,
+        order: usize,
+    },
+}
+
+impl PendingItem {
+    const fn order(&self) -> usize {
+        match self {
+            Self::Note { order, .. } | Self::Help { order, .. } | Self::SecondaryLabel { order, .. } => {
+                *order
+            }
+        }
+    }
 }
 
 #[derive(Clone)]
@@ -179,7 +217,7 @@ struct Config {
     // FIXME: move to `ErrorEnum` for better performance?
     span_type: Option<Type>,
     label: Option<LitStr>,
-    subdiagnostics: Vec<SubDiagnostic>,
+    pending: Vec<PendingItem>,
     depth: usize,
     nested: bool,
     #[expect(unused)]
@@ -190,54 +228,184 @@ impl Config {
     fn parse_subdiagnostic(
         meta: &syn::meta::ParseNestedMeta,
         kind: SubDiagKind,
-        span: Option<Ident>,
-        subdiagnostics: &mut Vec<SubDiagnostic>,
+        field: Option<Ident>,
+        order: usize,
+        pending: &mut Vec<PendingItem>,
     ) -> Result<()> {
         if meta.input.peek(Token![=]) {
             let key = match kind {
                 SubDiagKind::Note => "note",
                 SubDiagKind::Help => "help",
-                SubDiagKind::Label => "label",
             };
             return Err(meta.error(format!(
                 "use `#[diag({key}(\"...\"))]` instead of `#[diag({key} = \"...\")]`"
             )));
         }
-        if matches!(kind, SubDiagKind::Label) && span.is_none() {
-            return Err(meta.error(
-                "`#[diag(label(\"...\"))]` is only allowed on fields; use `#[diag(label = \"...\")]` for the primary label",
-            ));
-        }
         let content;
         syn::parenthesized!(content in meta.input);
         let message: LitStr = content.parse()?;
-        let mut label = None;
+        let mut label_override = None;
         while !content.is_empty() {
             content.parse::<Token![,]>()?;
             let key: Ident = content.parse()?;
             content.parse::<Token![=]>()?;
             if key == "label" {
-                if label.is_some() {
+                if label_override.is_some() {
                     return Err(syn::Error::new(key.span(), "duplicate `label` key"));
                 }
-                if matches!(kind, SubDiagKind::Label) {
-                    return Err(syn::Error::new(
-                        key.span(),
-                        "`label =` is not valid in `#[diag(label(\"...\"))]`",
-                    ));
-                }
-                label = Some(content.parse()?);
+                label_override = Some(content.parse()?);
             } else {
                 return Err(syn::Error::new(key.span(), "unknown subdiagnostic key"));
             }
         }
-        subdiagnostics.push(SubDiagnostic {
-            kind,
-            message,
-            label,
-            span,
+        pending.push(match kind {
+            SubDiagKind::Note => PendingItem::Note {
+                field,
+                message,
+                label_override,
+                order,
+            },
+            SubDiagKind::Help => PendingItem::Help {
+                field,
+                message,
+                label_override,
+                order,
+            },
         });
         Ok(())
+    }
+    fn parse_secondary_label(
+        meta: &syn::meta::ParseNestedMeta,
+        field: Ident,
+        order: usize,
+        pending: &mut Vec<PendingItem>,
+    ) -> Result<()> {
+        if meta.input.peek(Token![=]) {
+            return Err(meta.error(
+                "use `#[diag(label(\"...\"))]` for secondary labels on fields",
+            ));
+        }
+        let content;
+        syn::parenthesized!(content in meta.input);
+        let text: LitStr = content.parse()?;
+        if !content.is_empty() {
+            return Err(syn::Error::new(
+                content.span(),
+                "unexpected tokens in `#[diag(label(\"...\"))]`",
+            ));
+        }
+        pending.push(PendingItem::SecondaryLabel { field, text, order });
+        Ok(())
+    }
+    fn finalize_diags(
+        &self,
+        span_field: Option<&Ident>,
+        label: &Option<LitStr>,
+        msg: &Option<LitStr>,
+        ident: &Ident,
+    ) -> Result<(Vec<LabelEntry>, Vec<SubDiagnosticUnit>)> {
+        let primary_text = label.clone().or_else(|| msg.clone()).ok_or_else(|| {
+            Error::new_spanned(
+                ident,
+                "Missing label or message. Consider using `#[diag(label = \"...\")]`",
+            )
+        })?;
+        let primary_field = span_field.cloned().unwrap_or_else(|| format_ident!("_primary"));
+        let mut primary_labels = vec![LabelEntry {
+            field: primary_field,
+            text: primary_text,
+            order: 0,
+        }];
+        let mut units: Vec<SubDiagnosticUnit> = Vec::new();
+        let mut sorted = self.pending.clone();
+        sorted.sort_by_key(PendingItem::order);
+        for item in sorted {
+            match item {
+                PendingItem::Note {
+                    field,
+                    message,
+                    label_override,
+                    order,
+                } => {
+                    let anchor = field
+                        .clone()
+                        .unwrap_or_else(|| span_field.cloned().unwrap_or_else(|| format_ident!("_primary")));
+                    let label_text = label_override.unwrap_or_else(|| message.clone());
+                    units.push(SubDiagnosticUnit {
+                        kind: SubDiagKind::Note,
+                        message,
+                        field,
+                        labels: vec![LabelEntry {
+                            field: anchor,
+                            text: label_text,
+                            order,
+                        }],
+                        order,
+                    });
+                }
+                PendingItem::Help {
+                    field,
+                    message,
+                    label_override,
+                    order,
+                } => {
+                    let anchor = field
+                        .clone()
+                        .unwrap_or_else(|| span_field.cloned().unwrap_or_else(|| format_ident!("_primary")));
+                    let label_text = label_override.unwrap_or_else(|| message.clone());
+                    units.push(SubDiagnosticUnit {
+                        kind: SubDiagKind::Help,
+                        message,
+                        field,
+                        labels: vec![LabelEntry {
+                            field: anchor,
+                            text: label_text,
+                            order,
+                        }],
+                        order,
+                    });
+                }
+                PendingItem::SecondaryLabel { field, text, order } => {
+                    if let Some(unit) = units
+                        .iter_mut()
+                        .find(|unit| unit.field.as_ref() == Some(&field))
+                    {
+                        if unit
+                            .labels
+                            .iter()
+                            .any(|entry| entry.field != field)
+                        {
+                            return Err(Error::new_spanned(
+                                &field,
+                                "additional labels on a note/help must use the same field",
+                            ));
+                        }
+                        unit.labels.push(LabelEntry { field, text, order });
+                    } else {
+                        primary_labels.push(LabelEntry { field, text, order });
+                    }
+                }
+            }
+        }
+        primary_labels.sort_by_key(|entry| entry.order);
+        units.sort_by_key(|unit| unit.order);
+        for unit in &units {
+            if unit.labels.is_empty() {
+                return Err(Error::new_spanned(
+                    ident,
+                    "subdiagnostic must have at least one label",
+                ));
+            }
+            if let Some(field) = &unit.field {
+                if unit.labels.iter().any(|entry| entry.field != *field) {
+                    return Err(Error::new_spanned(
+                        field,
+                        "all labels in one note/help must refer to the same field",
+                    ));
+                }
+            }
+        }
+        Ok((primary_labels, units))
     }
     const fn new(span: Span) -> Self {
         Self {
@@ -250,7 +418,7 @@ impl Config {
             span_field: None,
             span_type: None,
             label: None,
-            subdiagnostics: Vec::new(),
+            pending: Vec::new(),
             depth: 0,
             nested: false,
             span,
@@ -267,12 +435,13 @@ impl Config {
         let mut number = self.number.clone();
         let mut msg = self.msg.clone();
         let mut label = self.label.clone();
-        let mut subdiagnostics = self.subdiagnostics.clone();
+        let mut pending = self.pending.clone();
         let mut span_field = self.span_field.clone();
         let mut span_type = self.span_type.clone();
         let depth = self.depth + 1;
         let mut nested = self.nested;
         let mut unused_attrs = Vec::new();
+        let mut item_order = 0usize;
 
         for attr in attrs {
             if attr.path().is_ident("diag") {
@@ -285,12 +454,9 @@ impl Config {
                             let value: LitStr = meta.value()?.parse()?;
                             label = Some(value);
                         } else {
-                            Self::parse_subdiagnostic(
-                                &meta,
-                                SubDiagKind::Label,
-                                None,
-                                &mut subdiagnostics,
-                            )?;
+                            return Err(meta.error(
+                                "`#[diag(label(\"...\"))]` on variants is invalid; use `#[diag(label = \"...\")]` for the primary label",
+                            ));
                         }
                     } else if meta.path.is_ident("msg") {
                         let value: LitStr = meta.value()?.parse()?;
@@ -304,18 +470,24 @@ impl Config {
                         let value: LitStr = meta.value()?.parse()?;
                         span_type = Some(value.parse()?);
                     } else if meta.path.is_ident("note") {
+                        let order = item_order;
+                        item_order += 1;
                         Self::parse_subdiagnostic(
                             &meta,
                             SubDiagKind::Note,
                             None,
-                            &mut subdiagnostics,
+                            order,
+                            &mut pending,
                         )?;
                     } else if meta.path.is_ident("help") {
+                        let order = item_order;
+                        item_order += 1;
                         Self::parse_subdiagnostic(
                             &meta,
                             SubDiagKind::Help,
                             None,
-                            &mut subdiagnostics,
+                            order,
+                            &mut pending,
                         )?;
                     } else {
                         return Err(meta.error("Unknown attribute key."));
@@ -331,35 +503,38 @@ impl Config {
             for (idx, field) in fields.iter().enumerate() {
                 let field_ident = field.ident.clone().unwrap_or(format_ident!("_{idx}"));
                 for attr in &field.attrs {
-                    if attr.meta.path().is_ident("diag") {
+                    if attr.path().is_ident("diag") {
                         attr.parse_nested_meta(|meta| {
                             if meta.path.is_ident("span") {
                                 span_field = Some(field_ident.clone());
                             } else if meta.path.is_ident("note") {
+                                let order = item_order;
+                                item_order += 1;
                                 Self::parse_subdiagnostic(
                                     &meta,
                                     SubDiagKind::Note,
                                     Some(field_ident.clone()),
-                                    &mut subdiagnostics,
+                                    order,
+                                    &mut pending,
                                 )?;
                             } else if meta.path.is_ident("help") {
+                                let order = item_order;
+                                item_order += 1;
                                 Self::parse_subdiagnostic(
                                     &meta,
                                     SubDiagKind::Help,
                                     Some(field_ident.clone()),
-                                    &mut subdiagnostics,
+                                    order,
+                                    &mut pending,
                                 )?;
                             } else if meta.path.is_ident("label") {
-                                if meta.input.peek(Token![=]) {
-                                    return Err(meta.error(
-                                        "use `#[diag(label(\"...\"))]` for secondary labels on fields",
-                                    ));
-                                }
-                                Self::parse_subdiagnostic(
+                                let order = item_order;
+                                item_order += 1;
+                                Self::parse_secondary_label(
                                     &meta,
-                                    SubDiagKind::Label,
-                                    Some(field_ident.clone()),
-                                    &mut subdiagnostics,
+                                    field_ident.clone(),
+                                    order,
+                                    &mut pending,
                                 )?;
                             } else {
                                 return Err(meta.error("Unknown attribute key."));
@@ -383,7 +558,7 @@ impl Config {
             span_field,
             span_type,
             label,
-            subdiagnostics,
+            pending,
             depth,
             nested,
             span,
@@ -746,35 +921,32 @@ impl ErrorEnum {
             })
             .collect()
     }
-    fn primary_label_branch(
+    fn label_vec1_codegen(
         &self,
-        ident: &Ident,
-        fields: &Fields,
-        label: &LitStr,
-    ) -> Result<TokenStream2> {
-        let prefix = self.variant(ident);
-        match fields {
-            Fields::Named(named) => {
-                let members = named.named.iter().map(|f| f.ident.as_ref());
-                Ok(quote! {
-                    #[allow(unused_variables)]
-                    #prefix { #(#members),* } => ::error_enum::format!(#label),
-                })
+        entries: &[LabelEntry],
+        unnamed: bool,
+        spanless: bool,
+    ) -> TokenStream2 {
+        let span_type = self.span_type();
+        let pairs = entries.iter().map(|entry| {
+            let field = &entry.field;
+            let text = &entry.text;
+            let span_expr = if spanless {
+                quote! { <#span_type as ::core::default::Default>::default() }
+            } else {
+                quote! { <#span_type as ::core::convert::From<_>>::from(#field) }
+            };
+            if unnamed {
+                let value = text.value();
+                let value = Self::process_unnamed_fields(&value);
+                quote! { (#span_expr, ::error_enum::format!(#value)) }
+            } else {
+                quote! { (#span_expr, ::error_enum::format!(#text)) }
             }
-            Fields::Unnamed(unnamed) => {
-                let params = (0..unnamed.unnamed.len()).map(|i| format_ident!("_{}", i));
-                let label = label.value();
-                let label = Self::process_unnamed_fields(&label);
-                Ok(quote! {
-                    #prefix ( #(#params),* ) => ::error_enum::format!(#label),
-                })
-            }
-            Fields::Unit => Ok(quote! {
-                #prefix => ::error_enum::format!(#label),
-            }),
-        }
+        });
+        quote! { ::error_enum::vec1![ #(#pairs),* ] }
     }
-    fn primary_label(&self) -> Result<Vec<TokenStream2>> {
+    fn primary_labels(&self) -> Result<Vec<TokenStream2>> {
         self.iter()?
             .filter_map(|config| {
                 config
@@ -784,115 +956,99 @@ impl ErrorEnum {
                              ident,
                              fields,
                              label,
+                             span_field,
+                             pending,
                              ..
-                         }| { Some((msg, ident?, fields?, label)) },
+                         }| Some((msg, ident?, fields?, label, span_field, pending)),
                     )
                     .transpose()
             })
             .map(|config| {
-                let (msg, ident, fields, label) = config?;
-                let label = label.or(msg).ok_or_else(|| {
-                    Error::new_spanned(
-                        &ident,
-                        "Missing label or message. Consider using `#[diag(label = \"...\")]`",
-                    )
-                })?;
-                self.primary_label_branch(&ident, &fields, &label)
+                let (msg, ident, fields, label, span_field, pending) = config?;
+                let config = Config {
+                    pending,
+                    ..Config::new(ident.span())
+                };
+                let (primary_labels, _) =
+                    config.finalize_diags(span_field.as_ref(), &label, &msg, &ident)?;
+                self.primary_labels_branch(&ident, &fields, span_field.as_ref(), &primary_labels)
             })
             .collect()
     }
-    fn subdiagnostic_tokens(
+    fn primary_labels_branch(
         &self,
-        sub: &SubDiagnostic,
+        ident: &Ident,
+        fields: &Fields,
+        span_field: Option<&Ident>,
+        entries: &[LabelEntry],
+    ) -> Result<TokenStream2> {
+        let prefix = self.variant(ident);
+        let labels = self.label_vec1_codegen(
+            entries,
+            matches!(fields, Fields::Unnamed(_)),
+            span_field.is_none(),
+        );
+        match fields {
+            Fields::Named(named) => {
+                let members = named.named.iter().map(|f| f.ident.as_ref());
+                Ok(quote! {
+                    #[allow(unused_variables)]
+                    #prefix { #(#members),* } => #labels,
+                })
+            }
+            Fields::Unnamed(unnamed) => {
+                let params = (0..unnamed.unnamed.len()).map(|i| format_ident!("_{}", i));
+                Ok(quote! {
+                    #prefix ( #(#params),* ) => #labels,
+                })
+            }
+            Fields::Unit => Ok(quote! {
+                #prefix => #labels,
+            }),
+        }
+    }
+    fn additional_unit_tokens(
+        &self,
+        unit: &SubDiagnosticUnit,
         unnamed: bool,
     ) -> TokenStream2 {
-        let span_type = self.span_type();
-        let span = sub
-            .span
-            .as_ref()
-            .map(|s| {
-                quote! { ::core::option::Option::Some(<#span_type as ::core::convert::From<_>>::from(#s)) }
-            })
-            .unwrap_or_else(|| quote! { ::core::option::Option::None });
-        let message = &sub.message;
+        let spanless = unit.field.is_none();
+        let labels = self.label_vec1_codegen(&unit.labels, unnamed, spanless);
+        let message = &unit.message;
         let message_fmt = if unnamed {
-            let msg = message.value();
-            let msg = Self::process_unnamed_fields(&msg);
-            quote! { ::error_enum::format!(#msg) }
+            let value = message.value();
+            let value = Self::process_unnamed_fields(&value);
+            quote! { ::error_enum::format!(#value) }
         } else {
             quote! { ::error_enum::format!(#message) }
         };
-        match sub.kind {
-            SubDiagKind::Label => {
-                let label_fmt = if unnamed {
-                    let msg = message.value();
-                    let msg = Self::process_unnamed_fields(&msg);
-                    quote! { ::error_enum::format!(#msg) }
-                } else {
-                    quote! { ::error_enum::format!(#message) }
-                };
-                quote! {
-                    (
-                        #span,
-                        ::error_enum::String::new(),
-                        #label_fmt,
-                        ::error_enum::AdditionalKind::Label,
-                    )
-                }
-            }
-            SubDiagKind::Note | SubDiagKind::Help => {
-                let kind = match sub.kind {
-                    SubDiagKind::Note => quote! { ::error_enum::AdditionalKind::Note },
-                    SubDiagKind::Help => quote! { ::error_enum::AdditionalKind::Help },
-                    SubDiagKind::Label => unreachable!(),
-                };
-                if sub.span.is_some() {
-                    let label_fmt = if let Some(label) = &sub.label {
-                        if unnamed {
-                            let msg = label.value();
-                            let msg = Self::process_unnamed_fields(&msg);
-                            quote! { ::error_enum::format!(#msg) }
-                        } else {
-                            quote! { ::error_enum::format!(#label) }
-                        }
-                    } else {
-                        message_fmt.clone()
-                    };
-                    quote! {
-                        (
-                            #span,
-                            #message_fmt,
-                            #label_fmt,
-                            #kind,
-                        )
-                    }
-                } else {
-                    quote! {
-                        (
-                            ::core::option::Option::None,
-                            #message_fmt,
-                            ::error_enum::String::new(),
-                            #kind,
-                        )
-                    }
-                }
-            }
+        let kind = match unit.kind {
+            SubDiagKind::Note => quote! { ::error_enum::AdditionalKind::Note },
+            SubDiagKind::Help => quote! { ::error_enum::AdditionalKind::Help },
+        };
+        quote! {
+            (
+                #message_fmt,
+                #labels,
+                #kind,
+            )
         }
     }
     fn additional_branch(
         &self,
         ident: &Ident,
         fields: &Fields,
-        subdiagnostics: &[SubDiagnostic],
+        units: &[SubDiagnosticUnit],
     ) -> Result<TokenStream2> {
         let prefix = self.variant(ident);
         let box_type: syn::Expr = parse_quote!(::error_enum::Box);
+        let unnamed = matches!(fields, Fields::Unnamed(_));
+        let additional = units
+            .iter()
+            .map(|unit| self.additional_unit_tokens(unit, unnamed));
         match fields {
             Fields::Named(named) => {
                 let members = named.named.iter().map(|f| f.ident.as_ref());
-                let additional = subdiagnostics
-                    .iter()
-                    .map(|sub| self.subdiagnostic_tokens(sub, false));
                 Ok(quote! {
                     #[allow(unused_variables)]
                     #prefix { #(#members),* } => #box_type::new([
@@ -900,11 +1056,8 @@ impl ErrorEnum {
                     ].into_iter()),
                 })
             }
-            Fields::Unnamed(unnamed) => {
-                let params = (0..unnamed.unnamed.len()).map(|i| format_ident!("_{}", i));
-                let additional = subdiagnostics
-                    .iter()
-                    .map(|sub| self.subdiagnostic_tokens(sub, true));
+            Fields::Unnamed(unnamed_fields) => {
+                let params = (0..unnamed_fields.unnamed.len()).map(|i| format_ident!("_{}", i));
                 Ok(quote! {
                     #prefix ( #(#params),* ) => #box_type::new([
                         #(#additional,)*
@@ -924,15 +1077,24 @@ impl ErrorEnum {
                         |Config {
                              ident,
                              fields,
-                             subdiagnostics,
+                             msg,
+                             label,
+                             span_field,
+                             pending,
                              ..
-                         }| { Some((ident?, fields?, subdiagnostics)) },
+                         }| Some((ident?, fields?, msg, label, span_field, pending)),
                     )
                     .transpose()
             })
             .map(|config| {
-                let (ident, fields, subdiagnostics) = config?;
-                self.additional_branch(&ident, &fields, &subdiagnostics)
+                let (ident, fields, msg, label, span_field, pending) = config?;
+                let config = Config {
+                    pending,
+                    ..Config::new(ident.span())
+                };
+                let (_, units) =
+                    config.finalize_diags(span_field.as_ref(), &label, &msg, &ident)?;
+                self.additional_branch(&ident, &fields, &units)
             })
             .collect()
     }
@@ -1070,7 +1232,7 @@ impl ErrorEnum {
         });
 
         let (kind, number, code, primary_span) = self.impl_error_enum()?;
-        let primary_label = self.primary_label()?;
+        let primary_labels = self.primary_labels()?;
         let additional = self.additional()?;
         let span_type = self.span_type();
         let option_span_type: Type = parse_quote!(::core::option::Option<#span_type>);
@@ -1106,12 +1268,12 @@ impl ErrorEnum {
                 fn primary_message(&self) -> #msg_type {
                     ::error_enum::format!("{self}")
                 }
-                fn primary_label(&self) -> #msg_type {
+                fn primary_labels(&self) -> ::error_enum::LabelVec1<#span_type, #msg_type> {
                     match self {
-                        #(#primary_label)*
+                        #(#primary_labels)*
                     }
                 }
-                fn additional(&self) -> #box_type<dyn #iterator_trait<Item = (#option_span_type, #msg_type, #msg_type, ::error_enum::AdditionalKind)>> {
+                fn additional(&self) -> #box_type<dyn #iterator_trait<Item = (#msg_type, ::error_enum::LabelVec1<#span_type, #msg_type>, ::error_enum::AdditionalKind)>> {
                     match self {
                         #(#additional)*
                     }

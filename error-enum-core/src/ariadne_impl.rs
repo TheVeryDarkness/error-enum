@@ -1,7 +1,7 @@
 use crate::{AdditionalKind, ErrorType, Kind, Span};
-use alloc::{format, string::String, vec::Vec};
+use alloc::{string::{String, ToString as _}, vec::Vec};
 use ariadne::{Config, Label, Report, ReportKind};
-use core::{fmt, iter};
+use core::fmt;
 use std::io;
 
 impl From<Kind> for ReportKind<'_> {
@@ -81,25 +81,62 @@ impl<T: ErrorType + ?Sized> ariadne::Cache<<T::Span as Span>::Uri> for Cache<T> 
     }
 }
 
+fn is_placeholder_span<S: Span>(span: &S) -> bool {
+    span.start() == span.end() && span.start() == 0 && span.uri().to_string().is_empty()
+}
+
 pub(crate) fn to_ariadne_report<T: ErrorType + ?Sized>(
     error: &T,
     buf: &mut impl io::Write,
     config: Config,
 ) -> Result<(), io::Error> {
-    let primary_span = error.primary_span().unwrap_or_default();
-    let primary_message = error.primary_message();
-    let cache: Cache<T> = Cache::from_iter(iter::once(primary_span.clone()));
+    let primary_labels = error.primary_labels();
+    let primary_span = primary_labels.first().0.clone();
+    let mut spans: Vec<T::Span> = Vec::new();
+    for (span, _) in primary_labels.iter().cloned() {
+        spans.push(span);
+    }
+    for (message, labels, kind) in error.additional() {
+        let _ = (message, kind);
+        for (span, _) in labels.iter().cloned() {
+            if !is_placeholder_span(&span) {
+                spans.push(span);
+            }
+        }
+    }
+    let cache: Cache<T> = Cache::from_iter(spans);
     let mut builder = Report::build(error.kind().into(), SpanWrapper(primary_span.clone()))
         .with_code(error.code())
-        .with_message(primary_message)
-        .with_label(Label::new(SpanWrapper(primary_span)).with_message(error.primary_label()))
+        .with_message(error.primary_message())
         .with_config(config);
-    for (_, message, label, kind) in error.additional() {
-        builder = match kind {
-            AdditionalKind::Note => builder.with_note(message),
-            AdditionalKind::Help => builder.with_help(message),
-            AdditionalKind::Label => builder.with_note(label),
-        };
+    for (span, label) in primary_labels.iter().cloned() {
+        builder = builder.with_label(Label::new(SpanWrapper(span)).with_message(label));
+    }
+    for (message, labels, kind) in error.additional() {
+        match kind {
+            AdditionalKind::Note if labels.iter().all(|(span, _)| is_placeholder_span(span)) => {
+                builder = builder.with_note(message);
+            }
+            AdditionalKind::Help if labels.iter().all(|(span, _)| is_placeholder_span(span)) => {
+                builder = builder.with_help(message);
+            }
+            AdditionalKind::Note | AdditionalKind::Help => {
+                for (span, label) in labels.iter().cloned() {
+                    if is_placeholder_span(&span) {
+                        continue;
+                    }
+                    builder = builder.with_label(Label::new(SpanWrapper(span)).with_message(label));
+                }
+                if !message.to_string().is_empty()
+                    && message.to_string() != labels.first().1.to_string()
+                {
+                    builder = match kind {
+                        AdditionalKind::Note => builder.with_note(message),
+                        AdditionalKind::Help => builder.with_help(message),
+                    };
+                }
+            }
+        }
     }
     builder.finish().write(cache, buf)
 }

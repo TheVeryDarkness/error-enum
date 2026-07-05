@@ -118,10 +118,15 @@ fn basic() {
                 fn primary_message(&self) -> ::error_enum::String {
                     ::error_enum::format!("{self}")
                 }
-                fn primary_label(&self) -> ::error_enum::String {
+                fn primary_labels(
+                    &self,
+                ) -> ::error_enum::LabelVec1<::error_enum::SimpleSpan, ::error_enum::String> {
                     match self {
                         #[allow(unused_variables)]
-                        Self::FileNotFound { path } => ::error_enum::format!("{path} not found."),
+                        Self::FileNotFound { path } => ::error_enum::vec1![(
+                            <::error_enum::SimpleSpan as ::core::default::Default>::default(),
+                            ::error_enum::format!("{path} not found.")
+                        )],
                     }
                 }
                 fn additional(
@@ -129,9 +134,8 @@ fn basic() {
                 ) -> ::error_enum::Box<
                     dyn ::core::iter::Iterator<
                         Item = (
-                            ::core::option::Option<::error_enum::SimpleSpan>,
                             ::error_enum::String,
-                            ::error_enum::String,
+                            ::error_enum::LabelVec1<::error_enum::SimpleSpan, ::error_enum::String>,
                             ::error_enum::AdditionalKind,
                         ),
                     >,
@@ -210,9 +214,14 @@ fn deep() {
                 fn primary_message(&self) -> ::error_enum::String {
                     ::error_enum::format!("{self}")
                 }
-                fn primary_label(&self) -> ::error_enum::String {
+                fn primary_labels(
+                    &self,
+                ) -> ::error_enum::LabelVec1<::error_enum::SimpleSpan, ::error_enum::String> {
                     match self {
-                        Self::AccessDenied => ::error_enum::format!("无权限。"),
+                        Self::AccessDenied => ::error_enum::vec1![(
+                            <::error_enum::SimpleSpan as ::core::default::Default>::default(),
+                            ::error_enum::format!("无权限。")
+                        )],
                     }
                 }
                 fn additional(
@@ -220,9 +229,8 @@ fn deep() {
                 ) -> ::error_enum::Box<
                     dyn ::core::iter::Iterator<
                         Item = (
-                            ::core::option::Option<::error_enum::SimpleSpan>,
                             ::error_enum::String,
-                            ::error_enum::String,
+                            ::error_enum::LabelVec1<::error_enum::SimpleSpan, ::error_enum::String>,
                             ::error_enum::AdditionalKind,
                         ),
                     >,
@@ -298,9 +306,14 @@ fn nested() {
                 fn primary_message(&self) -> ::error_enum::String {
                     ::error_enum::format!("{self}")
                 }
-                fn primary_label(&self) -> ::error_enum::String {
+                fn primary_labels(
+                    &self,
+                ) -> ::error_enum::LabelVec1<::error_enum::SimpleSpan, ::error_enum::String> {
                     match self {
-                        Self::FileError(_0) => ::error_enum::format!("{_0}"),
+                        Self::FileError(_0) => ::error_enum::vec1![(
+                            <::error_enum::SimpleSpan as ::core::default::Default>::default(),
+                            ::error_enum::format!("{_0}")
+                        )],
                     }
                 }
                 fn additional(
@@ -308,9 +321,8 @@ fn nested() {
                 ) -> ::error_enum::Box<
                     dyn ::core::iter::Iterator<
                         Item = (
-                            ::core::option::Option<::error_enum::SimpleSpan>,
                             ::error_enum::String,
-                            ::error_enum::String,
+                            ::error_enum::LabelVec1<::error_enum::SimpleSpan, ::error_enum::String>,
                             ::error_enum::AdditionalKind,
                         ),
                     >,
@@ -385,9 +397,14 @@ fn escaped_braces_in_msg() {
                 fn primary_message(&self) -> ::error_enum::String {
                     ::error_enum::format!("{self}")
                 }
-                fn primary_label(&self) -> ::error_enum::String {
+                fn primary_labels(
+                    &self,
+                ) -> ::error_enum::LabelVec1<::error_enum::SimpleSpan, ::error_enum::String> {
                     match self {
-                        Self::FileNotFound(_0) => ::error_enum::format!("{{0}} not found."),
+                        Self::FileNotFound(_0) => ::error_enum::vec1![(
+                            <::error_enum::SimpleSpan as ::core::default::Default>::default(),
+                            ::error_enum::format!("{{0}} not found.")
+                        )],
                     }
                 }
                 fn additional(
@@ -395,9 +412,8 @@ fn escaped_braces_in_msg() {
                 ) -> ::error_enum::Box<
                     dyn ::core::iter::Iterator<
                         Item = (
-                            ::core::option::Option<::error_enum::SimpleSpan>,
                             ::error_enum::String,
-                            ::error_enum::String,
+                            ::error_enum::LabelVec1<::error_enum::SimpleSpan, ::error_enum::String>,
                             ::error_enum::AdditionalKind,
                         ),
                     >,
@@ -480,12 +496,18 @@ fn test_error_type_with_derive_input() {
                 fn primary_message(&self) -> ::error_enum::String {
                     ::error_enum::format!("{self}")
                 }
-                fn primary_label(&self) -> ::error_enum::String {
+                fn primary_labels(
+                    &self,
+                ) -> ::error_enum::LabelVec1<::error_enum::SimpleSpan, ::error_enum::String> {
                     match self {
-                        Self::ParseIntError(_0) => {
+                        Self::ParseIntError(_0) => ::error_enum::vec1![(
+                            <::error_enum::SimpleSpan as ::core::default::Default>::default(),
                             ::error_enum::format!("Failed to parse integer from string due to: {_0}")
-                        }
-                        Self::IOError(_0, _1, _2) => ::error_enum::format!("Failed to read string due to: {_2}"),
+                        )],
+                        Self::IOError(_0, _1, _2) => ::error_enum::vec1![(
+                            <::error_enum::SimpleSpan as ::core::convert::From<_>>::from(_0),
+                            ::error_enum::format!("Failed to read string due to: {_2}")
+                        )],
                     }
                 }
                 fn additional(
@@ -493,9 +515,8 @@ fn test_error_type_with_derive_input() {
                 ) -> ::error_enum::Box<
                     dyn ::core::iter::Iterator<
                         Item = (
-                            ::core::option::Option<::error_enum::SimpleSpan>,
                             ::error_enum::String,
-                            ::error_enum::String,
+                            ::error_enum::LabelVec1<::error_enum::SimpleSpan, ::error_enum::String>,
                             ::error_enum::AdditionalKind,
                         ),
                     >,
@@ -504,11 +525,11 @@ fn test_error_type_with_derive_input() {
                         Self::ParseIntError(_0) => ::error_enum::Box::new([].into_iter()),
                         Self::IOError(_0, _1, _2) => ::error_enum::Box::new(
                             [(
-                                ::core::option::Option::Some(
+                                ::error_enum::format!("consider reformatting the token here"),
+                                ::error_enum::vec1![(
                                     <::error_enum::SimpleSpan as ::core::convert::From<_>>::from(_1),
-                                ),
-                                ::error_enum::format!("consider reformatting the token here"),
-                                ::error_enum::format!("consider reformatting the token here"),
+                                    ::error_enum::format!("consider reformatting the token here")
+                                )],
                                 ::error_enum::AdditionalKind::Note,
                             )]
                             .into_iter(),
@@ -574,9 +595,14 @@ fn test_error_type_with_derive_input() {
                 fn primary_message(&self) -> ::error_enum::String {
                     ::error_enum::format!("{self}")
                 }
-                fn primary_label(&self) -> ::error_enum::String {
+                fn primary_labels(
+                    &self,
+                ) -> ::error_enum::LabelVec1<::error_enum::SimpleSpan, ::error_enum::String> {
                     match self {
-                        Self(_0, _1, _2, _3) => ::error_enum::format!("Failed to read an integer due to: {_1}"),
+                        Self(_0, _1, _2, _3) => ::error_enum::vec1![(
+                            <::error_enum::SimpleSpan as ::core::convert::From<_>>::from(_2),
+                            ::error_enum::format!("Failed to read an integer due to: {_1}")
+                        )],
                     }
                 }
                 fn additional(
@@ -584,9 +610,8 @@ fn test_error_type_with_derive_input() {
                 ) -> ::error_enum::Box<
                     dyn ::core::iter::Iterator<
                         Item = (
-                            ::core::option::Option<::error_enum::SimpleSpan>,
                             ::error_enum::String,
-                            ::error_enum::String,
+                            ::error_enum::LabelVec1<::error_enum::SimpleSpan, ::error_enum::String>,
                             ::error_enum::AdditionalKind,
                         ),
                     >,
@@ -595,25 +620,27 @@ fn test_error_type_with_derive_input() {
                         Self(_0, _1, _2, _3) => ::error_enum::Box::new(
                             [
                                 (
-                                    ::core::option::Option::None,
                                     ::error_enum::format!("Got a string {_0:?}"),
-                                    ::error_enum::String::new(),
+                                    ::error_enum::vec1![(
+                                        <::error_enum::SimpleSpan as ::core::default::Default>::default(),
+                                        ::error_enum::format!("Got a string {_0:?}")
+                                    )],
                                     ::error_enum::AdditionalKind::Note,
                                 ),
                                 (
-                                    ::core::option::Option::Some(
+                                    ::error_enum::format!("consider reformatting the token {_0:?}"),
+                                    ::error_enum::vec1![(
                                         <::error_enum::SimpleSpan as ::core::convert::From<_>>::from(_0),
-                                    ),
-                                    ::error_enum::format!("consider reformatting the token {_0:?}"),
-                                    ::error_enum::format!("consider reformatting the token {_0:?}"),
+                                        ::error_enum::format!("consider reformatting the token {_0:?}")
+                                    )],
                                     ::error_enum::AdditionalKind::Help,
                                 ),
                                 (
-                                    ::core::option::Option::Some(
+                                    ::error_enum::format!("consider reformatting the token {_0:?}"),
+                                    ::error_enum::vec1![(
                                         <::error_enum::SimpleSpan as ::core::convert::From<_>>::from(_3),
-                                    ),
-                                    ::error_enum::format!("consider reformatting the token {_0:?}"),
-                                    ::error_enum::format!("consider reformatting the token {_0:?}"),
+                                        ::error_enum::format!("consider reformatting the token {_0:?}")
+                                    )],
                                     ::error_enum::AdditionalKind::Note,
                                 ),
                             ]
@@ -687,14 +714,19 @@ fn test_error_type_with_derive_input() {
                 fn primary_message(&self) -> ::error_enum::String {
                     ::error_enum::format!("{self}")
                 }
-                fn primary_label(&self) -> ::error_enum::String {
+                fn primary_labels(
+                    &self,
+                ) -> ::error_enum::LabelVec1<::error_enum::SimpleSpan, ::error_enum::String> {
                     match self {
                         #[allow(unused_variables)]
                         Self {
                             note_span,
                             error,
                             span,
-                        } => ::error_enum::format!("Failed to parse the string to an integer"),
+                        } => ::error_enum::vec1![(
+                            <::error_enum::SimpleSpan as ::core::convert::From<_>>::from(span),
+                            ::error_enum::format!("Failed to parse the string to an integer")
+                        )],
                     }
                 }
                 fn additional(
@@ -702,9 +734,8 @@ fn test_error_type_with_derive_input() {
                 ) -> ::error_enum::Box<
                     dyn ::core::iter::Iterator<
                         Item = (
-                            ::core::option::Option<::error_enum::SimpleSpan>,
                             ::error_enum::String,
-                            ::error_enum::String,
+                            ::error_enum::LabelVec1<::error_enum::SimpleSpan, ::error_enum::String>,
                             ::error_enum::AdditionalKind,
                         ),
                     >,
@@ -718,17 +749,19 @@ fn test_error_type_with_derive_input() {
                         } => ::error_enum::Box::new(
                             [
                                 (
-                                    ::core::option::Option::None,
                                     ::error_enum::format!("due to: {error}"),
-                                    ::error_enum::String::new(),
+                                    ::error_enum::vec1![(
+                                        <::error_enum::SimpleSpan as ::core::default::Default>::default(),
+                                        ::error_enum::format!("due to: {error}")
+                                    )],
                                     ::error_enum::AdditionalKind::Help,
                                 ),
                                 (
-                                    ::core::option::Option::Some(
+                                    ::error_enum::format!("consider changing the string to an integer"),
+                                    ::error_enum::vec1![(
                                         <::error_enum::SimpleSpan as ::core::convert::From<_>>::from(note_span),
-                                    ),
-                                    ::error_enum::format!("consider changing the string to an integer"),
-                                    ::error_enum::format!("consider changing the string to an integer"),
+                                        ::error_enum::format!("consider changing the string to an integer")
+                                    )],
                                     ::error_enum::AdditionalKind::Help,
                                 ),
                             ]

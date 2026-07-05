@@ -12,6 +12,8 @@
 pub use alloc::{boxed::Box, format, string::String};
 use core::fmt;
 pub use indexer::{Indexer, LineIndexer};
+pub use labels::{LabelVec1, SpannedLabel};
+pub use mitsein::vec1::{vec1, Vec1};
 pub use span::{SimpleSpan, Span};
 
 extern crate alloc;
@@ -19,6 +21,7 @@ extern crate alloc;
 extern crate std;
 
 mod indexer;
+mod labels;
 mod span;
 
 #[cfg(feature = "annotate-snippets")]
@@ -37,17 +40,14 @@ pub enum AdditionalKind {
     Note,
     /// Additional help.
     Help,
-    /// Secondary span label.
-    Label,
 }
 
 /// Iterator over additional diagnostics of an [`ErrorType`].
 pub type IterAdditional<T> = Box<
     dyn Iterator<
         Item = (
-            Option<<T as ErrorType>::Span>,
             <T as ErrorType>::Message,
-            <T as ErrorType>::Label,
+            LabelVec1<<T as ErrorType>::Span, <T as ErrorType>::Label>,
             AdditionalKind,
         ),
     >,
@@ -85,7 +85,7 @@ pub trait ErrorType: core::error::Error {
     /// The message type associated with the error type.
     type Message: fmt::Display;
     /// The label type associated with the error type.
-    type Label: fmt::Display;
+    type Label: fmt::Display + Clone;
 
     /// Get the kind of the error.
     fn kind(&self) -> Kind;
@@ -97,22 +97,29 @@ pub trait ErrorType: core::error::Error {
     /// like "E0", "W1", etc.
     fn code(&self) -> &str;
     /// Get the primary span of the error.
+    ///
+    /// Equivalent to the span of [`primary_labels`](Self::primary_labels) at index `0`.
     fn primary_span(&self) -> Option<Self::Span>;
     /// Get the primary message of the error.
     fn primary_message(&self) -> Self::Message;
-    /// Get the primary label of the error.
-    fn primary_label(&self) -> Self::Label;
+    /// Get the primary labels of the error.
+    ///
+    /// Index `0` is the primary span label. Further entries are secondary span labels on the
+    /// same diagnostic, in attribute declaration order.
+    fn primary_labels(&self) -> LabelVec1<Self::Span, Self::Label>;
 
     /// Get the primary diagnostic of the error.
-    fn primary(&self) -> (Option<Self::Span>, Self::Message, Self::Label) {
-        (
-            self.primary_span(),
-            self.primary_message(),
-            self.primary_label(),
-        )
+    fn primary(&self) -> (
+        Self::Message,
+        LabelVec1<Self::Span, Self::Label>,
+    ) {
+        (self.primary_message(), self.primary_labels())
     }
 
-    /// Get additional spans, messages, labels, and kinds of the error.
+    /// Get additional messages, labels, and kinds of the error.
+    ///
+    /// Each item is one note or help unit. [`LabelVec1`] index `0` is that unit's anchor label.
+    /// Backend renderers group labels with the same source text into one slice or file.
     fn additional(&self) -> IterAdditional<Self>;
 }
 
@@ -142,12 +149,15 @@ impl<T: ErrorType + ?Sized> ErrorType for &T {
         (*self).primary_message()
     }
     #[inline]
-    fn primary_label(&self) -> Self::Label {
-        (*self).primary_label()
+    fn primary_labels(&self) -> LabelVec1<Self::Span, Self::Label> {
+        (*self).primary_labels()
     }
 
     #[inline]
-    fn primary(&self) -> (Option<Self::Span>, Self::Message, Self::Label) {
+    fn primary(&self) -> (
+        Self::Message,
+        LabelVec1<Self::Span, Self::Label>,
+    ) {
         (*self).primary()
     }
 
@@ -166,10 +176,18 @@ impl<T: ErrorType + ?Sized> ErrorType for &T {
 /// - [codespan-reporting]
 /// - [miette]
 ///
-/// ## Restrictions
+/// ## Label rendering
 ///
-/// In [ariadne], [codespan-reporting] and [miette], spans of additional diagnostics are ignored,
-/// as these crates do not support additional diagnostics with spans.
+/// [`ErrorType::primary_labels`] and each additional [`LabelVec1`] preserve attribute
+/// declaration order. When converting to other diagnostic formats, labels that share the same
+/// source text (see [`Span::share_source_text`]) are merged into one slice or file with multiple
+/// annotations. Source groups appear in the order of each group's first label.
+///
+/// ## Backend notes
+///
+/// [annotate-snippets] fully supports multi-source labels. [codespan-reporting] registers one
+/// file per distinct source. [ariadne] deduplicates sources in its cache. [miette] collects all
+/// labeled spans in declaration order.
 ///
 /// [annotate-snippets]: https://docs.rs/annotate-snippets/0.9.1/annotate_snippets/
 /// [ariadne]: https://docs.rs/ariadne/0.6.0/ariadne/

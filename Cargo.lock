@@ -167,6 +167,7 @@ dependencies = [
  "ariadne",
  "codespan-reporting",
  "miette",
+ "mitsein",
  "stringzilla",
 ]
 
@@ -227,6 +228,15 @@ name = "is_ci"
 version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7655c9839580ee829dfacba1d1278c2b7883e50a277ff7541299489d6bdfdc45"
+
+[[package]]
+name = "itertools"
+version = "0.14.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2b192c782037fadd9cfa75548310488aabdbf3d2da73885b31bd0abd03351285"
+dependencies = [
+ "either",
+]
 
 [[package]]
 name = "lazy-regex"
@@ -310,6 +320,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1fa76a2c86f704bdb222d66965fb3d63269ce38518b83cb0575fca855ebb6316"
 dependencies = [
  "adler2",
+]
+
+[[package]]
+name = "mitsein"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b274adb8f25abe29f072083a61653188837fb768f0da534170e4f6162c93b47d"
+dependencies = [
+ "itertools",
+ "serde",
 ]
 
 [[package]]

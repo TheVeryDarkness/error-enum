@@ -3,7 +3,6 @@ use alloc::{
     boxed::Box,
     format,
     string::{String, ToString as _},
-    vec,
     vec::Vec,
 };
 use core::{error::Error, fmt};
@@ -16,7 +15,10 @@ pub(crate) struct Wrapper<'a, T: ?Sized, S>(&'a T, SpanWrapper<S>);
 
 impl<'a, T: ErrorType<Span = S> + ?Sized, S: Span + Default> Wrapper<'a, T, S> {
     pub(crate) fn new(value: &'a T) -> Self {
-        Self(value, SpanWrapper(value.primary_span().unwrap_or_default()))
+        Self(
+            value,
+            SpanWrapper(value.primary_span().unwrap_or_default()),
+        )
     }
 }
 
@@ -38,6 +40,10 @@ impl<T: ErrorType + ?Sized, S> fmt::Display for Wrapper<'_, T, S> {
 }
 impl<T: ErrorType + ?Sized, S> Error for Wrapper<'_, T, S> {}
 
+fn is_placeholder_span<S: Span>(span: &S) -> bool {
+    span.start() == span.end() && span.start() == 0 && span.uri().to_string().is_empty()
+}
+
 impl<T: ErrorType + ?Sized, S: Span + Send + Sync> Diagnostic for Wrapper<'_, T, S> {
     fn code<'a>(&'a self) -> Option<Box<dyn fmt::Display + 'a>> {
         Some(Box::new(self.0.code()))
@@ -55,40 +61,55 @@ impl<T: ErrorType + ?Sized, S: Span + Send + Sync> Diagnostic for Wrapper<'_, T,
         Some(Box::new(self.0.primary_span()?.uri().clone()))
     }
     fn labels(&self) -> Option<Box<dyn Iterator<Item = miette::LabeledSpan> + '_>> {
-        let primary_span = self.0.primary_span()?;
-        let mut labeled = vec![LabeledSpan::new_primary_with_span(
-            Some(self.0.primary_label().to_string()),
-            SourceSpan::new(
-                primary_span.start().into(),
-                primary_span.end() - primary_span.start(),
-            ),
-        )];
-        for (span, _message, label, _kind) in self.0.additional() {
-            let Some(span) = span else {
-                continue;
-            };
-            let label = label.to_string();
-            if label.is_empty() {
+        let mut labeled = Vec::new();
+        let mut primary_index = 0usize;
+        for (span, label) in self.0.primary_labels().iter().cloned() {
+            if is_placeholder_span(&span) {
                 continue;
             }
-            labeled.push(LabeledSpan::new_with_span(
-                Some(label),
-                SourceSpan::new(span.start().into(), span.end() - span.start()),
-            ));
+            let labeled_span = if primary_index == 0 {
+                LabeledSpan::new_primary_with_span(
+                    Some(label.to_string()),
+                    SourceSpan::new(span.start().into(), span.end() - span.start()),
+                )
+            } else {
+                LabeledSpan::new_with_span(
+                    Some(label.to_string()),
+                    SourceSpan::new(span.start().into(), span.end() - span.start()),
+                )
+            };
+            primary_index += 1;
+            labeled.push(labeled_span);
+        }
+        for (message, labels, _kind) in self.0.additional() {
+            let _ = message;
+            for (span, label) in labels.iter().cloned() {
+                if is_placeholder_span(&span) {
+                    continue;
+                }
+                labeled.push(LabeledSpan::new_with_span(
+                    Some(label.to_string()),
+                    SourceSpan::new(span.start().into(), span.end() - span.start()),
+                ));
+            }
         }
         Some(Box::new(labeled.into_iter()))
     }
     fn help<'a>(&'a self) -> Option<Box<dyn fmt::Display + 'a>> {
         let mut parts = Vec::new();
-        for (span, message, _label, kind) in self.0.additional() {
-            match kind {
-                AdditionalKind::Note if span.is_none() && !message.to_string().is_empty() => {
-                    parts.push(message.to_string());
+        for (message, labels, kind) in self.0.additional() {
+            if labels.iter().all(|(span, _)| is_placeholder_span(span)) {
+                match kind {
+                    AdditionalKind::Note if !message.to_string().is_empty() => {
+                        parts.push(message.to_string());
+                    }
+                    AdditionalKind::Help if !message.to_string().is_empty() => {
+                        parts.push(format!("help: {message}"));
+                    }
+                    AdditionalKind::Note | AdditionalKind::Help => {}
                 }
-                AdditionalKind::Help if !message.to_string().is_empty() => {
-                    parts.push(format!("help: {message}"));
-                }
-                _ => {}
+            } else if matches!(kind, AdditionalKind::Help) && !message.to_string().is_empty() {
+                parts.push(format!("help: {message}"));
             }
         }
         if parts.is_empty() {

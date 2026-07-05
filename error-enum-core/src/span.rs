@@ -7,7 +7,7 @@ pub trait Span: Clone {
     /// The URI type for the span.
     type Uri: PartialEq + Clone + fmt::Display;
     /// The source text type for the span.
-    type Source: AsRef<str> + Clone;
+    type Source: AsRef<str> + Clone + PartialEq;
     /// The index of the source text.
     type Index: Indexer + ?Sized;
 
@@ -27,8 +27,7 @@ pub trait Span: Clone {
     fn uri(&self) -> &Self::Uri;
     /// Check if the source text of the span is shared with another span.
     fn share_source_text(&self, other: &Self) -> bool {
-        core::ptr::eq(self.uri(), other.uri())
-            && core::ptr::eq(self.source_index(), other.source_index())
+        self.uri() == other.uri() && self.source_text() == other.source_text()
     }
 }
 
@@ -57,6 +56,17 @@ impl SimpleSpan {
             uri,
             source,
             indexer,
+            start,
+            end,
+        }
+    }
+
+    /// Returns a copy of this span with a different byte range, sharing source identity.
+    pub fn with_range(&self, start: usize, end: usize) -> Self {
+        Self {
+            uri: self.uri.clone(),
+            source: self.source.clone(),
+            indexer: self.indexer.clone(),
             start,
             end,
         }

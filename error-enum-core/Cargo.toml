@@ -21,6 +21,7 @@ annotate-snippets = { workspace = true, optional = true }
 ariadne = { workspace = true, optional = true }
 codespan-reporting = { workspace = true, optional = true }
 miette = { workspace = true, optional = true }
+mitsein = { workspace = true, default-features = false, features = ["alloc"] }
 stringzilla.workspace = true
 
 [lints]
