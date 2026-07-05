@@ -63,6 +63,12 @@ impl<T: ErrorType + ?Sized, S: Span + Send + Sync> Diagnostic for Wrapper<'_, T,
         .into_iter();
         Some(Box::new(iter))
     }
+    fn help<'a>(&'a self) -> Option<Box<dyn fmt::Display + 'a>> {
+        self.0
+            .additional()
+            .next()
+            .map(|(_, _, message)| Box::new(message) as Box<dyn fmt::Display + 'a>)
+    }
 }
 
 struct WrapperWithHandler<'a, T, S, H: ?Sized>(&'a Wrapper<'a, T, S>, &'a H);

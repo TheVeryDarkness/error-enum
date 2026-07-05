@@ -34,24 +34,6 @@ mod tests;
 /// it means `(kind, number, code, primary_span)`.
 type Tuple4<T> = (T, T, T, T);
 
-fn split_fields_attrs(fields: &mut Fields) -> Result<Option<Ident>> {
-    let mut span_ident = None;
-    for (idx, field) in fields.iter_mut().enumerate() {
-        for attr in &field.attrs {
-            if attr.meta.path().is_ident("diag") {
-                attr.parse_nested_meta(|meta| {
-                    if meta.path.is_ident("span") {
-                        span_ident = Some(field.ident.clone().unwrap_or(format_ident!("_{idx}")))
-                    }
-                    Ok(())
-                })?
-            }
-        }
-        field.attrs.retain(|attr| !attr.path().is_ident("diag"));
-    }
-    Ok(span_ident)
-}
-
 /// Tree node of error definitions.
 enum ErrorTree {
     /// Prefix node.
@@ -66,7 +48,6 @@ enum ErrorTree {
     Variant {
         span: Span,
         attrs: Vec<Attribute>,
-        span_ident: Option<Ident>,
         ident: Ident,
         fields: Fields,
     },
@@ -91,12 +72,6 @@ impl ErrorTree {
             ErrorTree::Variant { fields, .. } => Some(fields),
         }
     }
-    fn span_ident(&self) -> Option<Ident> {
-        match self {
-            ErrorTree::Prefix { .. } => None,
-            ErrorTree::Variant { span_ident, .. } => span_ident.clone(),
-        }
-    }
     fn span(&self) -> Span {
         match self {
             ErrorTree::Prefix { span, .. } => *span,
@@ -112,18 +87,16 @@ impl Parse for ErrorTree {
 
         if input.peek(Ident) {
             let ident: Ident = input.parse()?;
-            let mut fields = if input.peek(token::Brace) {
+            let fields = if input.peek(token::Brace) {
                 Fields::Named(input.parse()?)
             } else if input.peek(token::Paren) {
                 Fields::Unnamed(input.parse()?)
             } else {
                 Fields::Unit
             };
-            let span_ident = split_fields_attrs(&mut fields)?;
             Ok(ErrorTree::Variant {
                 span: ident.span(),
                 attrs,
-                span_ident,
                 ident,
                 fields,
             })
@@ -191,6 +164,8 @@ struct Config {
     // FIXME: move to `ErrorEnum` for better performance?
     span_type: Option<Type>,
     label: Option<LitStr>,
+    notes: Vec<(LitStr, Option<Ident>)>,
+    helps: Vec<(LitStr, Option<Ident>)>,
     depth: usize,
     nested: bool,
     #[expect(unused)]
@@ -209,6 +184,8 @@ impl Config {
             span_field: None,
             span_type: None,
             label: None,
+            notes: Vec::new(),
+            helps: Vec::new(),
             depth: 0,
             nested: false,
             span,
@@ -219,13 +196,15 @@ impl Config {
         attrs: &[Attribute],
         ident: Option<&Ident>,
         fields: Option<&Fields>,
-        span_field: Option<Ident>,
         span: Span,
     ) -> Result<Self> {
         let mut kind = self.kind;
         let mut number = self.number.clone();
         let mut msg = self.msg.clone();
         let mut label = self.label.clone();
+        let mut notes = self.notes.clone();
+        let mut helps = self.helps.clone();
+        let mut span_field = self.span_field.clone();
         let mut span_type = self.span_type.clone();
         let depth = self.depth + 1;
         let mut nested = self.nested;
@@ -251,13 +230,41 @@ impl Config {
                     } else if meta.path.is_ident("span_type") {
                         let value: LitStr = meta.value()?.parse()?;
                         span_type = Some(value.parse()?);
+                    } else if meta.path.is_ident("note") {
+                        let value: LitStr = meta.value()?.parse()?;
+                        notes.push((value, ident.cloned()));
+                    } else if meta.path.is_ident("help") {
+                        let value: LitStr = meta.value()?.parse()?;
+                        helps.push((value, ident.cloned()));
                     } else {
-                        return Err(Error::new_spanned(meta.path, "Unknown attribute key."));
+                        return Err(meta.error("Unknown attribute key."));
                     }
                     Ok(())
                 })?
             } else {
                 unused_attrs.push(attr.clone());
+            }
+        }
+
+        if let Some(fields) = fields {
+            for (idx, field) in fields.iter().enumerate() {
+                let field_ident = field.ident.clone().unwrap_or(format_ident!("_{idx}"));
+                for attr in &field.attrs {
+                    if attr.meta.path().is_ident("diag") {
+                        attr.parse_nested_meta(|meta| {
+                            if meta.path.is_ident("span") {
+                                span_field = Some(field_ident.clone());
+                            } else if meta.path.is_ident("note") {
+                                notes.push((meta.value()?.parse()?, Some(field_ident.clone())));
+                            } else if meta.path.is_ident("help") {
+                                helps.push((meta.value()?.parse()?, Some(field_ident.clone())));
+                            } else {
+                                return Err(meta.error("Unknown attribute key."));
+                            }
+                            Ok(())
+                        })?
+                    }
+                }
             }
         }
 
@@ -273,6 +280,8 @@ impl Config {
             span_field,
             span_type,
             label,
+            notes,
+            helps,
             depth,
             nested,
             span,
@@ -291,13 +300,7 @@ impl<'i> ErrorTreeIter<'i> {
         })
     }
     fn process_next(node: &'i ErrorTree, config: &Config, span: Span) -> Result<Config> {
-        let new_config = config.process(
-            node.attrs(),
-            node.ident(),
-            node.fields(),
-            node.span_ident(),
-            span,
-        )?;
+        let new_config = config.process(node.attrs(), node.ident(), node.fields(), span)?;
         Ok(new_config)
     }
 }
@@ -381,14 +384,13 @@ impl ErrorEnum {
 
 impl Parse for ErrorEnum {
     fn parse(input: parse::ParseStream) -> syn::Result<Self> {
-        let mut attrs = input.call(Attribute::parse_outer)?;
+        let attrs = input.call(Attribute::parse_outer)?;
         let vis = input.parse()?;
         let name: Ident = input.parse()?;
         let generics = input.parse()?;
         let children;
         let brace = braced!(children in input);
-        let config = Config::new(name.span()).process(&attrs, None, None, None, name.span())?;
-        attrs.retain(|attr| !attr.path().is_ident("diag"));
+        let config = Config::new(name.span()).process(&attrs, None, None, name.span())?;
 
         let roots = Punctuated::parse_terminated(&children)?;
         let inner = ErrorEnumInner::Multiple {
@@ -422,23 +424,20 @@ impl TryFrom<DeriveInput> for ErrorEnum {
             syn::Data::Enum(data_enum) => {
                 let mut roots = Punctuated::new();
                 for pair in data_enum.variants.into_pairs() {
-                    let (mut variant, comma) = pair.into_tuple();
+                    let (variant, comma) = pair.into_tuple();
                     let span = variant.ident.span();
-                    let span_ident = split_fields_attrs(&mut variant.fields)?;
                     let node = ErrorTree::Variant {
                         span,
                         attrs: variant.attrs,
                         ident: variant.ident,
                         fields: variant.fields,
-                        span_ident,
                     };
                     roots.push_value(node);
                     if let Some(comma) = comma {
                         roots.push_punct(comma);
                     }
                 }
-                let config =
-                    Config::new(ident.span()).process(&attrs, None, None, None, ident.span())?;
+                let config = Config::new(ident.span()).process(&attrs, None, None, ident.span())?;
                 attrs.retain(|attr| !attr.path().is_ident("diag"));
 
                 let inner = ErrorEnumInner::Multiple {
@@ -455,11 +454,9 @@ impl TryFrom<DeriveInput> for ErrorEnum {
                     config,
                 })
             }
-            syn::Data::Struct(mut data_struct) => {
+            syn::Data::Struct(data_struct) => {
                 let span = ident.span();
-                let span_ident = split_fields_attrs(&mut data_struct.fields)?;
-                let config =
-                    Config::new(ident.span()).process(&attrs, None, None, None, ident.span())?;
+                let config = Config::new(ident.span()).process(&attrs, None, None, ident.span())?;
                 attrs.retain(|attr| !attr.path().is_ident("diag"));
 
                 let node = ErrorTree::Variant {
@@ -467,7 +464,6 @@ impl TryFrom<DeriveInput> for ErrorEnum {
                     attrs,
                     ident: ident.clone(),
                     fields: data_struct.fields,
-                    span_ident,
                 };
 
                 let inner = ErrorEnumInner::Single { node };
@@ -556,7 +552,7 @@ impl ErrorEnum {
                     .transpose()
             })
             .map(|config| {
-                let (kind, msg, number, mut attrs, ident, fields) = config?;
+                let (kind, msg, number, mut attrs, ident, mut fields) = config?;
 
                 let kind = kind.unwrap_or_default();
                 let code = format!("{}{}", kind.short_str(), number);
@@ -568,12 +564,17 @@ impl ErrorEnum {
                     None => format!("`{code}`"),
                 };
 
+                attrs.retain(|attr| !attr.path().is_ident("diag"));
                 attrs.push(syn::parse_quote! {
                     #[doc = #doc]
                 });
                 attrs.push(syn::parse_quote! {
                     #[doc(alias = #code)]
                 });
+
+                for field in fields.iter_mut() {
+                    field.attrs.retain(|attr| !attr.path().is_ident("diag"));
+                }
 
                 Ok(Variant {
                     attrs,
@@ -704,28 +705,59 @@ impl ErrorEnum {
         ident: &Ident,
         fields: &Fields,
         label: &LitStr,
+        notes: &[(LitStr, Option<Ident>)],
+        helps: &[(LitStr, Option<Ident>)],
     ) -> Result<TokenStream2> {
         let prefix = self.variant(ident);
-        let empty_iter: syn::Expr = parse_quote!(::core::iter::empty());
         let box_type: syn::Expr = parse_quote!(::error_enum::Box);
+        let span_type = self.span_type();
         match fields {
             Fields::Named(named) => {
                 let members = named.named.iter().map(|f| f.ident.as_ref());
+                let additional = notes.iter().chain(helps.iter()).map(|(note, span)| {
+                    let span = span
+                        .as_ref()
+                        .map(|s| quote! { ::core::option::Option::Some(<#span_type as ::core::convert::From<_>>::from(#s)) })
+                        .unwrap_or_else(|| quote! { ::core::option::Option::None });
+                    quote! {
+                        (
+                            #span,
+                            ::error_enum::format!(#note),
+                            ::error_enum::format!(#note),
+                        ),
+                    }
+                });
                 Ok(quote! {
                     #[allow(unused_variables)]
-                    #prefix { #(#members),* } => #box_type::new(#empty_iter),
+                    #prefix { #(#members),* } => #box_type::new([
+                        #(#additional)*
+                    ].into_iter()),
                 })
             }
             Fields::Unnamed(unnamed) => {
                 let params = (0..unnamed.unnamed.len()).map(|i| format_ident!("_{}", i));
                 let args = Self::used_unnamed_fields(label)?;
-                let _ = args;
+                let additional = notes.iter().chain(helps.iter()).map(|(note, span)| {
+                    let span = span
+                        .as_ref()
+                        .map(|s| quote! { ::core::option::Option::Some(<#span_type as ::core::convert::From<_>>::from(#s)) })
+                        .unwrap_or_else(|| quote! { ::core::option::Option::None });
+                    quote! {
+                        (
+                            #span,
+                            ::error_enum::format!(#note #(, #args)* ),
+                            ::error_enum::format!(#note #(, #args)* ),
+                        ),
+                    }
+                });
                 Ok(quote! {
-                    #prefix ( #(#params),* ) => #box_type::new(#empty_iter),
+                    #prefix ( #(#params),* ) => #box_type::new([
+                        #(#additional)*
+                    ].into_iter()),
                 })
             }
             Fields::Unit => Ok(quote! {
-                #prefix => #box_type::new(#empty_iter),
+                #prefix => #box_type::new([].into_iter()),
             }),
         }
     }
@@ -739,20 +771,24 @@ impl ErrorEnum {
                              ident,
                              fields,
                              label,
+                             notes,
+                             helps,
                              ..
-                         }| { Some((msg, ident?, fields?, label)) },
+                         }| {
+                            Some((msg, ident?, fields?, label, notes, helps))
+                        },
                     )
                     .transpose()
             })
             .map(|config| {
-                let (msg, ident, fields, label) = config?;
+                let (msg, ident, fields, label, notes, helps) = config?;
                 let label = label.or(msg).ok_or_else(|| {
                     Error::new_spanned(
                         &ident,
                         "Missing label or message. Consider using `#[diag(label = \"...\")]`",
                     )
                 })?;
-                self.additional_branch(&ident, &fields, &label)
+                self.additional_branch(&ident, &fields, &label, &notes, &helps)
             })
             .collect()
     }
@@ -817,18 +853,18 @@ impl ErrorEnum {
                         |Config {
                              ident,
                              fields,
-                             span_field,
                              kind,
                              number,
+                             span_field,
                              ..
                          }| {
-                            Some((ident?, fields?, span_field, kind, number))
+                            Some((ident?, fields?, kind, number, span_field))
                         },
                     )
                     .transpose()
             })
             .map(|config| {
-                let (ident, fields, span_field, kind, number) = config?;
+                let (ident, fields, kind, number, span_field) = config?;
                 let kind = kind.unwrap_or_default();
                 self.impl_error_enum_branch(&ident, &fields, span_field, &kind, &number)
             })
@@ -845,7 +881,11 @@ impl ErrorEnum {
         )
     }
     fn try_to_tokens(&self, tokens: &mut TokenStream2) -> Result<()> {
-        let attrs = &self.attrs;
+        let attrs: Vec<&Attribute> = self
+            .attrs
+            .iter()
+            .filter(|attr| !attr.path().is_ident("diag"))
+            .collect();
         let vis = &self.vis;
         let name = &self.name;
         let generics = &self.generics;

@@ -136,6 +136,23 @@ impl<T: ErrorType + ?Sized> ErrorType for &T {
 }
 
 /// Conversion to other diagnostic types.
+///
+/// # Targets
+///
+/// - [annotate-snippets]
+/// - [ariadne]
+/// - [codespan-reporting]
+/// - [miette]
+///
+/// ## Restrictions
+///
+/// In [ariadne], [codespan-reporting] and [miette], spans of additional diagnostics are ignored,
+/// as these crates do not support additional diagnostics with spans.
+///
+/// [annotate-snippets]: https://docs.rs/annotate-snippets/0.9.1/annotate_snippets/
+/// [ariadne]: https://docs.rs/ariadne/0.6.0/ariadne/
+/// [codespan-reporting]: https://docs.rs/codespan-reporting/0.13.1/codespan_reporting/
+/// [miette]: https://docs.rs/miette/7.6.0/miette/
 pub trait ErrorTypeExt: ErrorType {
     /// Format the error as an [annotate snippet].
     ///

@@ -89,13 +89,15 @@ pub(crate) fn to_ariadne_report<T: ErrorType + ?Sized>(
     let primary_span = error.primary_span().unwrap_or_default();
     let primary_message = error.primary_message();
     let cache: Cache<T> = Cache::from_iter(iter::once(primary_span.clone()));
-    Report::build(error.kind().into(), SpanWrapper(primary_span.clone()))
+    let mut builder = Report::build(error.kind().into(), SpanWrapper(primary_span.clone()))
         .with_code(error.code())
         .with_message(primary_message)
         .with_label(Label::new(SpanWrapper(primary_span)).with_message(error.primary_label()))
-        .with_config(config)
-        .finish()
-        .write(cache, buf)
+        .with_config(config);
+    for (_, _, message) in error.additional() {
+        builder = builder.with_note(message);
+    }
+    builder.finish().write(cache, buf)
 }
 pub(crate) fn fmt_as_ariadne_report<T: ErrorType + ?Sized>(
     error: &T,

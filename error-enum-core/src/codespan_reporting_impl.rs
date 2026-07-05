@@ -1,8 +1,5 @@
 use crate::{ErrorType, Kind, Span};
-use alloc::{
-    string::{String, ToString as _},
-    vec::Vec,
-};
+use alloc::string::{String, ToString as _};
 use codespan_reporting::{
     diagnostic::{Diagnostic, Label, LabelStyle, Severity},
     files::{Error, SimpleFiles},
@@ -33,7 +30,10 @@ pub(crate) fn to_codespan_diagnostic<T: ErrorType + ?Sized>(
         labels: [Label::new(LabelStyle::Primary, 0, primary_span.range())
             .with_message(value.primary_label())]
         .into(),
-        notes: Vec::new(),
+        notes: value
+            .additional()
+            .map(|(_, _, message)| message.to_string())
+            .collect(),
     };
 
     // FIXME: implement my own `Files` to avoid cloning source texts and indexes

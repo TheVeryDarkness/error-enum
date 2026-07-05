@@ -125,16 +125,18 @@ fn basic() {
                 }
                 fn additional(
                     &self,
-                ) -> impl ::core::iter::Iterator<
-                    Item = (
-                        ::core::option::Option<::error_enum::SimpleSpan>,
-                        ::error_enum::String,
-                        ::error_enum::String,
-                    ),
+                ) -> ::error_enum::Box<
+                    dyn ::core::iter::Iterator<
+                        Item = (
+                            ::core::option::Option<::error_enum::SimpleSpan>,
+                            ::error_enum::String,
+                            ::error_enum::String,
+                        ),
+                    >,
                 > {
                     match self {
                         #[allow(unused_variables)]
-                        Self::FileNotFound { path } => ::core::iter::empty(),
+                        Self::FileNotFound { path } => ::error_enum::Box::new([].into_iter()),
                     }
                 }
             }
@@ -212,15 +214,17 @@ fn deep() {
                 }
                 fn additional(
                     &self,
-                ) -> impl ::core::iter::Iterator<
-                    Item = (
-                        ::core::option::Option<::error_enum::SimpleSpan>,
-                        ::error_enum::String,
-                        ::error_enum::String,
-                    ),
+                ) -> ::error_enum::Box<
+                    dyn ::core::iter::Iterator<
+                        Item = (
+                            ::core::option::Option<::error_enum::SimpleSpan>,
+                            ::error_enum::String,
+                            ::error_enum::String,
+                        ),
+                    >,
                 > {
                     match self {
-                        Self::AccessDenied => ::core::iter::empty(),
+                        Self::AccessDenied => ::error_enum::Box::new([].into_iter()),
                     }
                 }
             }
@@ -296,15 +300,17 @@ fn nested() {
                 }
                 fn additional(
                     &self,
-                ) -> impl ::core::iter::Iterator<
-                    Item = (
-                        ::core::option::Option<::error_enum::SimpleSpan>,
-                        ::error_enum::String,
-                        ::error_enum::String,
-                    ),
+                ) -> ::error_enum::Box<
+                    dyn ::core::iter::Iterator<
+                        Item = (
+                            ::core::option::Option<::error_enum::SimpleSpan>,
+                            ::error_enum::String,
+                            ::error_enum::String,
+                        ),
+                    >,
                 > {
                     match self {
-                        Self::FileError(_0) => ::core::iter::empty(),
+                        Self::FileError(_0) => ::error_enum::Box::new([].into_iter()),
                     }
                 }
             }
@@ -379,15 +385,17 @@ fn escaped_braces_in_msg() {
                 }
                 fn additional(
                     &self,
-                ) -> impl ::core::iter::Iterator<
-                    Item = (
-                        ::core::option::Option<::error_enum::SimpleSpan>,
-                        ::error_enum::String,
-                        ::error_enum::String,
-                    ),
+                ) -> ::error_enum::Box<
+                    dyn ::core::iter::Iterator<
+                        Item = (
+                            ::core::option::Option<::error_enum::SimpleSpan>,
+                            ::error_enum::String,
+                            ::error_enum::String,
+                        ),
+                    >,
                 > {
                     match self {
-                        Self::FileNotFound(_0) => ::core::iter::empty(),
+                        Self::FileNotFound(_0) => ::error_enum::Box::new([].into_iter()),
                     }
                 }
             }
@@ -463,16 +471,18 @@ fn test_error_type_with_derive_input() {
                 }
                 fn additional(
                     &self,
-                ) -> impl ::core::iter::Iterator<
-                    Item = (
-                        ::core::option::Option<::error_enum::SimpleSpan>,
-                        ::error_enum::String,
-                        ::error_enum::String,
-                    ),
+                ) -> ::error_enum::Box<
+                    dyn ::core::iter::Iterator<
+                        Item = (
+                            ::core::option::Option<::error_enum::SimpleSpan>,
+                            ::error_enum::String,
+                            ::error_enum::String,
+                        ),
+                    >,
                 > {
                     match self {
-                        Self::ParseIntError(_0) => ::core::iter::empty(),
-                        Self::IOError(_0) => ::core::iter::empty(),
+                        Self::ParseIntError(_0) => ::error_enum::Box::new([].into_iter()),
+                        Self::IOError(_0) => ::error_enum::Box::new([].into_iter()),
                     }
                 }
             }
@@ -481,19 +491,20 @@ fn test_error_type_with_derive_input() {
     test_error_type_derive(
         quote! {
             #[derive(Debug, ErrorType)]
-            #[diag(msg = "Failed to read string due to: {0}")]
-            struct ReadIntError (std::io::Error);
+            #[diag(msg = "Failed to read an integer due to: {1}")]
+            #[diag(note = "Got a string {0:?}")]
+            struct ReadIntError<'a>(&'a str, std::io::Error);
         },
         quote! {
-            impl ::core::fmt::Display for ReadIntError {
+            impl<'a> ::core::fmt::Display for ReadIntError<'a> {
                 fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
                     match self {
-                        Self(_0) => ::core::write!(f, "Failed to read string due to: {0}", _0),
+                        Self(_0, _1) => ::core::write!(f, "Failed to read an integer due to: {1}", _1),
                     }
                 }
             }
-            impl ::core::error::Error for ReadIntError {}
-            impl ::error_enum::ErrorType for ReadIntError {
+            impl<'a> ::core::error::Error for ReadIntError<'a> {}
+            impl<'a> ::error_enum::ErrorType for ReadIntError<'a> {
                 type Span = ::error_enum::SimpleSpan;
                 type Message = ::error_enum::String;
                 fn kind(&self) -> ::error_enum::Kind {
@@ -514,7 +525,7 @@ fn test_error_type_with_derive_input() {
                 fn primary_span(&self) -> ::core::option::Option<::error_enum::SimpleSpan> {
                     match self {
                         #[allow(unused_variables)]
-                        Self(_0) => ::core::option::Option::None,
+                        Self(_0, _1) => ::core::option::Option::None,
                     }
                 }
                 fn primary_message(&self) -> ::error_enum::String {
@@ -522,20 +533,140 @@ fn test_error_type_with_derive_input() {
                 }
                 fn primary_label(&self) -> ::error_enum::String {
                     match self {
-                        Self(_0) => ::error_enum::format!("Failed to read string due to: {0}", _0),
+                        Self(_0, _1) => ::error_enum::format!("Failed to read an integer due to: {1}", _1),
                     }
                 }
                 fn additional(
                     &self,
-                ) -> impl ::core::iter::Iterator<
-                    Item = (
-                        ::core::option::Option<::error_enum::SimpleSpan>,
-                        ::error_enum::String,
-                        ::error_enum::String,
-                    ),
+                ) -> ::error_enum::Box<
+                    dyn ::core::iter::Iterator<
+                        Item = (
+                            ::core::option::Option<::error_enum::SimpleSpan>,
+                            ::error_enum::String,
+                            ::error_enum::String,
+                        ),
+                    >,
                 > {
                     match self {
-                        Self(_0) => ::core::iter::empty(),
+                        Self(_0, _1) => ::error_enum::Box::new(
+                            [(
+                                ::core::option::Option::None,
+                                ::error_enum::format!("Got a string {0:?}", _1),
+                                ::error_enum::format!("Got a string {0:?}", _1),
+                            )]
+                            .into_iter(),
+                        ),
+                    }
+                }
+            }
+        },
+    );
+    test_error_type_derive(
+        quote! {
+            #[derive(Debug, ErrorType)]
+            #[diag(msg = "Failed to parse the string to an integer")]
+            #[diag(help = "due to: {error}")]
+            struct ParseIntError<'a> {
+                #[diag(help = "consider changing the string to an integer")]
+                note_span: SimpleSpan,
+                error: std::num::ParseIntError,
+                #[diag(span)]
+                span: SimpleSpan,
+            }
+        },
+        quote! {
+            impl<'a> ::core::fmt::Display for ParseIntError<'a> {
+                fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+                    match self {
+                        #[allow(unused_variables)]
+                        Self {
+                            note_span,
+                            error,
+                            span,
+                        } => ::core::write!(f, "Failed to parse the string to an integer"),
+                    }
+                }
+            }
+            impl<'a> ::core::error::Error for ParseIntError<'a> {}
+            impl<'a> ::error_enum::ErrorType for ParseIntError<'a> {
+                type Span = ::error_enum::SimpleSpan;
+                type Message = ::error_enum::String;
+                fn kind(&self) -> ::error_enum::Kind {
+                    match self {
+                        Self { .. } => ::error_enum::Kind::Error,
+                    }
+                }
+                fn number(&self) -> &::core::primitive::str {
+                    match self {
+                        Self { .. } => "",
+                    }
+                }
+                fn code(&self) -> &::core::primitive::str {
+                    match self {
+                        Self { .. } => "E",
+                    }
+                }
+                fn primary_span(&self) -> ::core::option::Option<::error_enum::SimpleSpan> {
+                    match self {
+                        #[allow(unused_variables)]
+                        Self {
+                            note_span,
+                            error,
+                            span,
+                        } => {
+                            ::core::option::Option::Some(<::error_enum::SimpleSpan as ::core::convert::From<
+                                _,
+                            >>::from(span))
+                        }
+                    }
+                }
+                fn primary_message(&self) -> ::error_enum::String {
+                    ::error_enum::format!("{self}")
+                }
+                fn primary_label(&self) -> ::error_enum::String {
+                    match self {
+                        #[allow(unused_variables)]
+                        Self {
+                            note_span,
+                            error,
+                            span,
+                        } => ::error_enum::format!("Failed to parse the string to an integer"),
+                    }
+                }
+                fn additional(
+                    &self,
+                ) -> ::error_enum::Box<
+                    dyn ::core::iter::Iterator<
+                        Item = (
+                            ::core::option::Option<::error_enum::SimpleSpan>,
+                            ::error_enum::String,
+                            ::error_enum::String,
+                        ),
+                    >,
+                > {
+                    match self {
+                        #[allow(unused_variables)]
+                        Self {
+                            note_span,
+                            error,
+                            span,
+                        } => ::error_enum::Box::new(
+                            [
+                                (
+                                    ::core::option::Option::None,
+                                    ::error_enum::format!("due to: {error}"),
+                                    ::error_enum::format!("due to: {error}"),
+                                ),
+                                (
+                                    ::core::option::Option::Some(
+                                        <::error_enum::SimpleSpan as ::core::convert::From<_>>::from(note_span),
+                                    ),
+                                    ::error_enum::format!("consider changing the string to an integer"),
+                                    ::error_enum::format!("consider changing the string to an integer"),
+                                ),
+                            ]
+                            .into_iter(),
+                        ),
                     }
                 }
             }

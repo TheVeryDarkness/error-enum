@@ -46,6 +46,9 @@ error_type! {
                     expected_ty: String,
                     /// Actual type.
                     actual_ty: String,
+                    /// Note span of the expected type.
+                    #[diag(note = "expected because of this term")]
+                    note: SimpleSpan,
                     /// Span of the term.
                     #[diag(span)]
                     span: SimpleSpan,
@@ -62,10 +65,17 @@ fn main() {
         23,
         26,
     );
+    let note_span = SimpleSpan::new(
+        "file://test.py",
+        "print(1 + 2)\nprint(1 + '1')\nprint('1' + '1')",
+        19,
+        20,
+    );
     let error = MyError::TypeError {
         term: "'1'".to_owned(),
         expected_ty: "int".to_owned(),
         actual_ty: "str".to_owned(),
+        note: note_span.clone(),
         span: span.clone(),
     };
 
