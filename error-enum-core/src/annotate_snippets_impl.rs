@@ -16,6 +16,19 @@ impl From<Kind> for AnnotationType {
         }
     }
 }
+impl From<AdditionalKind> for AnnotationType {
+    fn from(value: AdditionalKind) -> Self {
+        match value {
+            AdditionalKind::Note => AnnotationType::Note,
+            AdditionalKind::Help => AnnotationType::Help,
+        }
+    }
+}
+impl From<&AdditionalKind> for AnnotationType {
+    fn from(value: &AdditionalKind) -> Self {
+        (*value).into()
+    }
+}
 
 fn is_placeholder_span<S: Span>(span: &S) -> bool {
     span.start() == span.end() && span.start() == 0 && span.uri().to_string().is_empty()
@@ -43,10 +56,7 @@ pub(crate) fn fmt_as_annotate_snippets<T: ErrorType + ?Sized>(
     }
     for (message, labels, additional_kind) in error.additional() {
         let message = message.to_string();
-        let additional_annotation_type = match additional_kind {
-            AdditionalKind::Note => AnnotationType::Note,
-            AdditionalKind::Help => AnnotationType::Help,
-        };
+        let additional_annotation_type = additional_kind.into();
         let mut has_real_span = false;
         for (span, label) in labels.iter().cloned() {
             if is_placeholder_span(&span) {
@@ -95,10 +105,7 @@ pub(crate) fn fmt_as_annotate_snippets<T: ErrorType + ?Sized>(
         .map(|(message, additional_kind)| Annotation {
             id: None,
             label: Some(message.as_str()),
-            annotation_type: match additional_kind {
-                AdditionalKind::Note => AnnotationType::Note,
-                AdditionalKind::Help => AnnotationType::Help,
-            },
+            annotation_type: additional_kind.into(),
         })
         .collect();
     let snippet = Snippet {
