@@ -59,8 +59,8 @@ impl<T: ErrorType + ?Sized, S: Span + Send + Sync> Diagnostic for Wrapper<'_, T,
     fn labels(&self) -> Option<Box<dyn Iterator<Item = miette::LabeledSpan> + '_>> {
         let mut labeled = Vec::new();
         let mut primary_index = 0usize;
-        for (span, label) in self.0.primary_labels().iter().cloned() {
-            if is_placeholder_span(&span) {
+        for (span, label) in self.0.primary_labels().iter() {
+            if is_placeholder_span(span) {
                 continue;
             }
             let labeled_span = if primary_index == 0 {
@@ -79,8 +79,8 @@ impl<T: ErrorType + ?Sized, S: Span + Send + Sync> Diagnostic for Wrapper<'_, T,
         }
         for (message, labels, _kind) in self.0.additional() {
             let _ = message;
-            for (span, label) in labels.iter().cloned() {
-                if is_placeholder_span(&span) {
+            for (span, label) in labels.iter() {
+                if is_placeholder_span(span) {
                     continue;
                 }
                 labeled.push(LabeledSpan::new_with_span(
