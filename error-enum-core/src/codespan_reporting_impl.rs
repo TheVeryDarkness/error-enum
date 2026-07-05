@@ -95,7 +95,7 @@ pub(crate) fn to_codespan_diagnostic<T: ErrorType + ?Sized>(
         severity: value.kind().into(),
         code: Some(value.code().into()),
         message: value.primary_message().to_string(),
-        labels: labels.into(),
+        labels,
         notes,
     };
 
