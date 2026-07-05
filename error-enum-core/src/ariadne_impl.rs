@@ -1,5 +1,5 @@
-use crate::{ErrorType, Kind, Span};
-use alloc::{string::String, vec::Vec};
+use crate::{AdditionalKind, ErrorType, Kind, Span};
+use alloc::{format, string::String, vec::Vec};
 use ariadne::{Config, Label, Report, ReportKind};
 use core::{fmt, iter};
 use std::io;
@@ -94,8 +94,12 @@ pub(crate) fn to_ariadne_report<T: ErrorType + ?Sized>(
         .with_message(primary_message)
         .with_label(Label::new(SpanWrapper(primary_span)).with_message(error.primary_label()))
         .with_config(config);
-    for (_, _, message) in error.additional() {
-        builder = builder.with_note(message);
+    for (_, message, label, kind) in error.additional() {
+        builder = match kind {
+            AdditionalKind::Note => builder.with_note(message),
+            AdditionalKind::Help => builder.with_help(message),
+            AdditionalKind::Label => builder.with_note(label),
+        };
     }
     builder.finish().write(cache, buf)
 }

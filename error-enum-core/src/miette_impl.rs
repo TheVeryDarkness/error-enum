@@ -1,7 +1,10 @@
-use crate::{ErrorType, Indexer, Kind, Span};
+use crate::{AdditionalKind, ErrorType, Indexer, Kind, Span};
 use alloc::{
     boxed::Box,
+    format,
     string::{String, ToString as _},
+    vec,
+    vec::Vec,
 };
 use core::{error::Error, fmt};
 use miette::{
@@ -53,21 +56,46 @@ impl<T: ErrorType + ?Sized, S: Span + Send + Sync> Diagnostic for Wrapper<'_, T,
     }
     fn labels(&self) -> Option<Box<dyn Iterator<Item = miette::LabeledSpan> + '_>> {
         let primary_span = self.0.primary_span()?;
-        let iter = [LabeledSpan::new_primary_with_span(
+        let mut labeled = vec![LabeledSpan::new_primary_with_span(
             Some(self.0.primary_label().to_string()),
             SourceSpan::new(
                 primary_span.start().into(),
                 primary_span.end() - primary_span.start(),
             ),
-        )]
-        .into_iter();
-        Some(Box::new(iter))
+        )];
+        for (span, _message, label, _kind) in self.0.additional() {
+            let Some(span) = span else {
+                continue;
+            };
+            let label = label.to_string();
+            if label.is_empty() {
+                continue;
+            }
+            labeled.push(LabeledSpan::new_with_span(
+                Some(label),
+                SourceSpan::new(span.start().into(), span.end() - span.start()),
+            ));
+        }
+        Some(Box::new(labeled.into_iter()))
     }
     fn help<'a>(&'a self) -> Option<Box<dyn fmt::Display + 'a>> {
-        self.0
-            .additional()
-            .next()
-            .map(|(_, _, message)| Box::new(message) as Box<dyn fmt::Display + 'a>)
+        let mut parts = Vec::new();
+        for (span, message, _label, kind) in self.0.additional() {
+            match kind {
+                AdditionalKind::Note if span.is_none() && !message.to_string().is_empty() => {
+                    parts.push(message.to_string());
+                }
+                AdditionalKind::Help if !message.to_string().is_empty() => {
+                    parts.push(format!("help: {message}"));
+                }
+                _ => {}
+            }
+        }
+        if parts.is_empty() {
+            None
+        } else {
+            Some(Box::new(parts.join("\n")))
+        }
     }
 }
 
@@ -90,15 +118,6 @@ impl<S: Span + Send + Sync> SourceCode for SpanWrapper<S> {
         context_lines_before: usize,
         context_lines_after: usize,
     ) -> Result<Box<dyn SpanContents<'a> + 'a>, MietteError> {
-        // dbg!(span, context_lines_before, context_lines_after);
-        // debug_assert!(
-        //     span.offset() + span.len() < self.0.source_text().as_ref().len(),
-        //     "{} + {} < {} does not hold",
-        //     span.offset(),
-        //     span.len(),
-        //     self.0.source_text().as_ref().len(),
-        // );
-
         let index = self.0.source_index();
         let (start, end) = index.span_with_context_lines(
             span.offset(),
@@ -108,10 +127,8 @@ impl<S: Span + Send + Sync> SourceCode for SpanWrapper<S> {
         );
         let (start_line, start_column) = index.line_col_at(span.offset());
         let (end_line, _) = index.line_col_at(span.offset() + span.len());
-        // dbg!(start, end, start_line, start_column, end_line);
         let name = self.0.uri().to_string();
         let data = &self.0.source_text().as_ref().as_bytes()[start..end];
-        // dbg!(&name, data);
         Ok(Box::new(MietteSpanContents::new_named(
             name,
             data,

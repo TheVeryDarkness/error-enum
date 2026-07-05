@@ -12,7 +12,7 @@ enum ReadIntError {
     #[diag(msg = "Failed to read string due to: {0}")]
     IOError(io::Error),
     #[diag(msg = "{error}")]
-    #[diag(help = "canonicalizing {path:?}")]
+    #[diag(help("canonicalizing {path:?}"))]
     CanonicalizeError {
         path: PathBuf,
         error: std::io::Error,

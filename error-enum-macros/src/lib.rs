@@ -153,6 +153,21 @@ impl ToTokens for Kind {
 
 /// Configuration for each variant.
 #[derive(Clone)]
+enum SubDiagKind {
+    Note,
+    Help,
+    Label,
+}
+
+#[derive(Clone)]
+struct SubDiagnostic {
+    kind: SubDiagKind,
+    message: LitStr,
+    label: Option<LitStr>,
+    span: Option<Ident>,
+}
+
+#[derive(Clone)]
 struct Config {
     kind: Option<Kind>,
     number: String,
@@ -164,8 +179,7 @@ struct Config {
     // FIXME: move to `ErrorEnum` for better performance?
     span_type: Option<Type>,
     label: Option<LitStr>,
-    notes: Vec<(LitStr, Option<Ident>)>,
-    helps: Vec<(LitStr, Option<Ident>)>,
+    subdiagnostics: Vec<SubDiagnostic>,
     depth: usize,
     nested: bool,
     #[expect(unused)]
@@ -173,6 +187,58 @@ struct Config {
 }
 
 impl Config {
+    fn parse_subdiagnostic(
+        meta: &syn::meta::ParseNestedMeta,
+        kind: SubDiagKind,
+        span: Option<Ident>,
+        subdiagnostics: &mut Vec<SubDiagnostic>,
+    ) -> Result<()> {
+        if meta.input.peek(Token![=]) {
+            let key = match kind {
+                SubDiagKind::Note => "note",
+                SubDiagKind::Help => "help",
+                SubDiagKind::Label => "label",
+            };
+            return Err(meta.error(format!(
+                "use `#[diag({key}(\"...\"))]` instead of `#[diag({key} = \"...\")]`"
+            )));
+        }
+        if matches!(kind, SubDiagKind::Label) && span.is_none() {
+            return Err(meta.error(
+                "`#[diag(label(\"...\"))]` is only allowed on fields; use `#[diag(label = \"...\")]` for the primary label",
+            ));
+        }
+        let content;
+        syn::parenthesized!(content in meta.input);
+        let message: LitStr = content.parse()?;
+        let mut label = None;
+        while !content.is_empty() {
+            content.parse::<Token![,]>()?;
+            let key: Ident = content.parse()?;
+            content.parse::<Token![=]>()?;
+            if key == "label" {
+                if label.is_some() {
+                    return Err(syn::Error::new(key.span(), "duplicate `label` key"));
+                }
+                if matches!(kind, SubDiagKind::Label) {
+                    return Err(syn::Error::new(
+                        key.span(),
+                        "`label =` is not valid in `#[diag(label(\"...\"))]`",
+                    ));
+                }
+                label = Some(content.parse()?);
+            } else {
+                return Err(syn::Error::new(key.span(), "unknown subdiagnostic key"));
+            }
+        }
+        subdiagnostics.push(SubDiagnostic {
+            kind,
+            message,
+            label,
+            span,
+        });
+        Ok(())
+    }
     const fn new(span: Span) -> Self {
         Self {
             kind: None,
@@ -184,8 +250,7 @@ impl Config {
             span_field: None,
             span_type: None,
             label: None,
-            notes: Vec::new(),
-            helps: Vec::new(),
+            subdiagnostics: Vec::new(),
             depth: 0,
             nested: false,
             span,
@@ -202,8 +267,7 @@ impl Config {
         let mut number = self.number.clone();
         let mut msg = self.msg.clone();
         let mut label = self.label.clone();
-        let mut notes = self.notes.clone();
-        let mut helps = self.helps.clone();
+        let mut subdiagnostics = self.subdiagnostics.clone();
         let mut span_field = self.span_field.clone();
         let mut span_type = self.span_type.clone();
         let depth = self.depth + 1;
@@ -217,8 +281,17 @@ impl Config {
                         let value: LitStr = meta.value()?.parse()?;
                         kind = Some(value.try_into()?);
                     } else if meta.path.is_ident("label") {
-                        let value: LitStr = meta.value()?.parse()?;
-                        label = Some(value);
+                        if meta.input.peek(Token![=]) {
+                            let value: LitStr = meta.value()?.parse()?;
+                            label = Some(value);
+                        } else {
+                            Self::parse_subdiagnostic(
+                                &meta,
+                                SubDiagKind::Label,
+                                None,
+                                &mut subdiagnostics,
+                            )?;
+                        }
                     } else if meta.path.is_ident("msg") {
                         let value: LitStr = meta.value()?.parse()?;
                         msg = Some(value);
@@ -231,11 +304,19 @@ impl Config {
                         let value: LitStr = meta.value()?.parse()?;
                         span_type = Some(value.parse()?);
                     } else if meta.path.is_ident("note") {
-                        let value: LitStr = meta.value()?.parse()?;
-                        notes.push((value, None));
+                        Self::parse_subdiagnostic(
+                            &meta,
+                            SubDiagKind::Note,
+                            None,
+                            &mut subdiagnostics,
+                        )?;
                     } else if meta.path.is_ident("help") {
-                        let value: LitStr = meta.value()?.parse()?;
-                        helps.push((value, None));
+                        Self::parse_subdiagnostic(
+                            &meta,
+                            SubDiagKind::Help,
+                            None,
+                            &mut subdiagnostics,
+                        )?;
                     } else {
                         return Err(meta.error("Unknown attribute key."));
                     }
@@ -255,9 +336,31 @@ impl Config {
                             if meta.path.is_ident("span") {
                                 span_field = Some(field_ident.clone());
                             } else if meta.path.is_ident("note") {
-                                notes.push((meta.value()?.parse()?, Some(field_ident.clone())));
+                                Self::parse_subdiagnostic(
+                                    &meta,
+                                    SubDiagKind::Note,
+                                    Some(field_ident.clone()),
+                                    &mut subdiagnostics,
+                                )?;
                             } else if meta.path.is_ident("help") {
-                                helps.push((meta.value()?.parse()?, Some(field_ident.clone())));
+                                Self::parse_subdiagnostic(
+                                    &meta,
+                                    SubDiagKind::Help,
+                                    Some(field_ident.clone()),
+                                    &mut subdiagnostics,
+                                )?;
+                            } else if meta.path.is_ident("label") {
+                                if meta.input.peek(Token![=]) {
+                                    return Err(meta.error(
+                                        "use `#[diag(label(\"...\"))]` for secondary labels on fields",
+                                    ));
+                                }
+                                Self::parse_subdiagnostic(
+                                    &meta,
+                                    SubDiagKind::Label,
+                                    Some(field_ident.clone()),
+                                    &mut subdiagnostics,
+                                )?;
                             } else {
                                 return Err(meta.error("Unknown attribute key."));
                             }
@@ -280,8 +383,7 @@ impl Config {
             span_field,
             span_type,
             label,
-            notes,
-            helps,
+            subdiagnostics,
             depth,
             nested,
             span,
@@ -699,59 +801,113 @@ impl ErrorEnum {
             })
             .collect()
     }
+    fn subdiagnostic_tokens(
+        &self,
+        sub: &SubDiagnostic,
+        unnamed: bool,
+    ) -> TokenStream2 {
+        let span_type = self.span_type();
+        let span = sub
+            .span
+            .as_ref()
+            .map(|s| {
+                quote! { ::core::option::Option::Some(<#span_type as ::core::convert::From<_>>::from(#s)) }
+            })
+            .unwrap_or_else(|| quote! { ::core::option::Option::None });
+        let message = &sub.message;
+        let message_fmt = if unnamed {
+            let msg = message.value();
+            let msg = Self::process_unnamed_fields(&msg);
+            quote! { ::error_enum::format!(#msg) }
+        } else {
+            quote! { ::error_enum::format!(#message) }
+        };
+        match sub.kind {
+            SubDiagKind::Label => {
+                let label_fmt = if unnamed {
+                    let msg = message.value();
+                    let msg = Self::process_unnamed_fields(&msg);
+                    quote! { ::error_enum::format!(#msg) }
+                } else {
+                    quote! { ::error_enum::format!(#message) }
+                };
+                quote! {
+                    (
+                        #span,
+                        ::error_enum::String::new(),
+                        #label_fmt,
+                        ::error_enum::AdditionalKind::Label,
+                    )
+                }
+            }
+            SubDiagKind::Note | SubDiagKind::Help => {
+                let kind = match sub.kind {
+                    SubDiagKind::Note => quote! { ::error_enum::AdditionalKind::Note },
+                    SubDiagKind::Help => quote! { ::error_enum::AdditionalKind::Help },
+                    SubDiagKind::Label => unreachable!(),
+                };
+                if sub.span.is_some() {
+                    let label_fmt = if let Some(label) = &sub.label {
+                        if unnamed {
+                            let msg = label.value();
+                            let msg = Self::process_unnamed_fields(&msg);
+                            quote! { ::error_enum::format!(#msg) }
+                        } else {
+                            quote! { ::error_enum::format!(#label) }
+                        }
+                    } else {
+                        message_fmt.clone()
+                    };
+                    quote! {
+                        (
+                            #span,
+                            #message_fmt,
+                            #label_fmt,
+                            #kind,
+                        )
+                    }
+                } else {
+                    quote! {
+                        (
+                            ::core::option::Option::None,
+                            #message_fmt,
+                            ::error_enum::String::new(),
+                            #kind,
+                        )
+                    }
+                }
+            }
+        }
+    }
     fn additional_branch(
         &self,
         ident: &Ident,
         fields: &Fields,
-        notes: &[(LitStr, Option<Ident>)],
-        helps: &[(LitStr, Option<Ident>)],
+        subdiagnostics: &[SubDiagnostic],
     ) -> Result<TokenStream2> {
         let prefix = self.variant(ident);
         let box_type: syn::Expr = parse_quote!(::error_enum::Box);
-        let span_type = self.span_type();
         match fields {
             Fields::Named(named) => {
                 let members = named.named.iter().map(|f| f.ident.as_ref());
-                let additional = notes.iter().chain(helps.iter()).map(|(note, span)| {
-                    let span = span
-                        .as_ref()
-                        .map(|s| quote! { ::core::option::Option::Some(<#span_type as ::core::convert::From<_>>::from(#s)) })
-                        .unwrap_or_else(|| quote! { ::core::option::Option::None });
-                    quote! {
-                        (
-                            #span,
-                            ::error_enum::format!(#note),
-                            ::error_enum::format!(#note),
-                        ),
-                    }
-                });
+                let additional = subdiagnostics
+                    .iter()
+                    .map(|sub| self.subdiagnostic_tokens(sub, false));
                 Ok(quote! {
                     #[allow(unused_variables)]
                     #prefix { #(#members),* } => #box_type::new([
-                        #(#additional)*
+                        #(#additional,)*
                     ].into_iter()),
                 })
             }
             Fields::Unnamed(unnamed) => {
                 let params = (0..unnamed.unnamed.len()).map(|i| format_ident!("_{}", i));
-                let additional = notes.iter().chain(helps.iter()).map(|(note, span)| {
-                    let note = note.value();
-                    let note = Self::process_unnamed_fields(&note);
-                    let span = span
-                        .as_ref()
-                        .map(|s| quote! { ::core::option::Option::Some(<#span_type as ::core::convert::From<_>>::from(#s)) })
-                        .unwrap_or_else(|| quote! { ::core::option::Option::None });
-                    quote! {
-                        (
-                            #span,
-                            ::error_enum::format!(#note),
-                            ::error_enum::format!(#note),
-                        ),
-                    }
-                });
+                let additional = subdiagnostics
+                    .iter()
+                    .map(|sub| self.subdiagnostic_tokens(sub, true));
                 Ok(quote! {
                     #prefix ( #(#params),* ) => #box_type::new([
-                        #(#additional)*
+                        #(#additional,)*
                     ].into_iter()),
                 })
             }
@@ -768,16 +924,15 @@ impl ErrorEnum {
                         |Config {
                              ident,
                              fields,
-                             notes,
-                             helps,
+                             subdiagnostics,
                              ..
-                         }| { Some((ident?, fields?, notes, helps)) },
+                         }| { Some((ident?, fields?, subdiagnostics)) },
                     )
                     .transpose()
             })
             .map(|config| {
-                let (ident, fields, notes, helps) = config?;
-                self.additional_branch(&ident, &fields, &notes, &helps)
+                let (ident, fields, subdiagnostics) = config?;
+                self.additional_branch(&ident, &fields, &subdiagnostics)
             })
             .collect()
     }
@@ -956,7 +1111,7 @@ impl ErrorEnum {
                         #(#primary_label)*
                     }
                 }
-                fn additional(&self) -> #box_type<dyn #iterator_trait<Item = (#option_span_type, #msg_type, #msg_type)>> {
+                fn additional(&self) -> #box_type<dyn #iterator_trait<Item = (#option_span_type, #msg_type, #msg_type, ::error_enum::AdditionalKind)>> {
                     match self {
                         #(#additional)*
                     }

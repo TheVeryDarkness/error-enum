@@ -132,6 +132,7 @@ fn basic() {
                             ::core::option::Option<::error_enum::SimpleSpan>,
                             ::error_enum::String,
                             ::error_enum::String,
+                            ::error_enum::AdditionalKind,
                         ),
                     >,
                 > {
@@ -222,6 +223,7 @@ fn deep() {
                             ::core::option::Option<::error_enum::SimpleSpan>,
                             ::error_enum::String,
                             ::error_enum::String,
+                            ::error_enum::AdditionalKind,
                         ),
                     >,
                 > {
@@ -309,6 +311,7 @@ fn nested() {
                             ::core::option::Option<::error_enum::SimpleSpan>,
                             ::error_enum::String,
                             ::error_enum::String,
+                            ::error_enum::AdditionalKind,
                         ),
                     >,
                 > {
@@ -395,6 +398,7 @@ fn escaped_braces_in_msg() {
                             ::core::option::Option<::error_enum::SimpleSpan>,
                             ::error_enum::String,
                             ::error_enum::String,
+                            ::error_enum::AdditionalKind,
                         ),
                     >,
                 > {
@@ -421,7 +425,7 @@ fn test_error_type_with_derive_input() {
                 IOError(
                     #[diag(span)]
                     SimpleSpan,
-                    #[diag(note = "consider reformatting the token here")]
+                    #[diag(note("consider reformatting the token here"))]
                     SimpleSpan,
                     std::io::Error,
                 ),
@@ -492,6 +496,7 @@ fn test_error_type_with_derive_input() {
                             ::core::option::Option<::error_enum::SimpleSpan>,
                             ::error_enum::String,
                             ::error_enum::String,
+                            ::error_enum::AdditionalKind,
                         ),
                     >,
                 > {
@@ -504,6 +509,7 @@ fn test_error_type_with_derive_input() {
                                 ),
                                 ::error_enum::format!("consider reformatting the token here"),
                                 ::error_enum::format!("consider reformatting the token here"),
+                                ::error_enum::AdditionalKind::Note,
                             )]
                             .into_iter(),
                         ),
@@ -516,14 +522,14 @@ fn test_error_type_with_derive_input() {
         quote! {
             #[derive(Debug, ErrorType)]
             #[diag(msg = "Failed to read an integer due to: {1}")]
-            #[diag(note = "Got a string {0:?}")]
+            #[diag(note("Got a string {0:?}"))]
             struct ReadIntError<'a>(
-                #[diag(help = "consider reformatting the token {0:?}")]
+                #[diag(help("consider reformatting the token {0:?}"))]
                 &'a str,
                 std::io::Error,
                 #[diag(span)]
                 SimpleSpan,
-                #[diag(note = "consider reformatting the token {0:?}")]
+                #[diag(note("consider reformatting the token {0:?}"))]
                 SimpleSpan,
             );
         },
@@ -581,6 +587,7 @@ fn test_error_type_with_derive_input() {
                             ::core::option::Option<::error_enum::SimpleSpan>,
                             ::error_enum::String,
                             ::error_enum::String,
+                            ::error_enum::AdditionalKind,
                         ),
                     >,
                 > {
@@ -590,14 +597,8 @@ fn test_error_type_with_derive_input() {
                                 (
                                     ::core::option::Option::None,
                                     ::error_enum::format!("Got a string {_0:?}"),
-                                    ::error_enum::format!("Got a string {_0:?}"),
-                                ),
-                                (
-                                    ::core::option::Option::Some(
-                                        <::error_enum::SimpleSpan as ::core::convert::From<_>>::from(_3),
-                                    ),
-                                    ::error_enum::format!("consider reformatting the token {_0:?}"),
-                                    ::error_enum::format!("consider reformatting the token {_0:?}"),
+                                    ::error_enum::String::new(),
+                                    ::error_enum::AdditionalKind::Note,
                                 ),
                                 (
                                     ::core::option::Option::Some(
@@ -605,6 +606,15 @@ fn test_error_type_with_derive_input() {
                                     ),
                                     ::error_enum::format!("consider reformatting the token {_0:?}"),
                                     ::error_enum::format!("consider reformatting the token {_0:?}"),
+                                    ::error_enum::AdditionalKind::Help,
+                                ),
+                                (
+                                    ::core::option::Option::Some(
+                                        <::error_enum::SimpleSpan as ::core::convert::From<_>>::from(_3),
+                                    ),
+                                    ::error_enum::format!("consider reformatting the token {_0:?}"),
+                                    ::error_enum::format!("consider reformatting the token {_0:?}"),
+                                    ::error_enum::AdditionalKind::Note,
                                 ),
                             ]
                             .into_iter(),
@@ -618,9 +628,9 @@ fn test_error_type_with_derive_input() {
         quote! {
             #[derive(Debug, ErrorType)]
             #[diag(msg = "Failed to parse the string to an integer")]
-            #[diag(help = "due to: {error}")]
+            #[diag(help("due to: {error}"))]
             struct ParseIntError<'a> {
-                #[diag(help = "consider changing the string to an integer")]
+                #[diag(help("consider changing the string to an integer"))]
                 note_span: SimpleSpan,
                 error: std::num::ParseIntError,
                 #[diag(span)]
@@ -695,6 +705,7 @@ fn test_error_type_with_derive_input() {
                             ::core::option::Option<::error_enum::SimpleSpan>,
                             ::error_enum::String,
                             ::error_enum::String,
+                            ::error_enum::AdditionalKind,
                         ),
                     >,
                 > {
@@ -709,7 +720,8 @@ fn test_error_type_with_derive_input() {
                                 (
                                     ::core::option::Option::None,
                                     ::error_enum::format!("due to: {error}"),
-                                    ::error_enum::format!("due to: {error}"),
+                                    ::error_enum::String::new(),
+                                    ::error_enum::AdditionalKind::Help,
                                 ),
                                 (
                                     ::core::option::Option::Some(
@@ -717,6 +729,7 @@ fn test_error_type_with_derive_input() {
                                     ),
                                     ::error_enum::format!("consider changing the string to an integer"),
                                     ::error_enum::format!("consider changing the string to an integer"),
+                                    ::error_enum::AdditionalKind::Help,
                                 ),
                             ]
                             .into_iter(),

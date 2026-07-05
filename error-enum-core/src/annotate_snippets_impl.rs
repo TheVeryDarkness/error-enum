@@ -1,4 +1,4 @@
-use crate::{ErrorType, Kind, Span};
+use crate::{AdditionalKind, ErrorType, Kind, Span};
 use alloc::{
     string::{String, ToString as _},
     vec,
@@ -18,6 +18,13 @@ impl From<Kind> for AnnotationType {
     }
 }
 
+struct StoredAdditional<S> {
+    span: S,
+    origin: String,
+    annotation_label: String,
+    footer_message: Option<String>,
+}
+
 pub(crate) fn fmt_as_annotate_snippets<T: ErrorType + ?Sized>(
     error: &T,
     opt: FormatOptions,
@@ -32,7 +39,38 @@ pub(crate) fn fmt_as_annotate_snippets<T: ErrorType + ?Sized>(
         annotation_type: kind.into(),
     };
     let title = Some(title);
-    let footer = Vec::new();
+    let mut footer_messages = Vec::new();
+    let mut stored = Vec::new();
+    for (span, message, label, additional_kind) in error.additional() {
+        let message = message.to_string();
+        let label = label.to_string();
+        if span.is_none() {
+            if !message.is_empty() {
+                footer_messages.push(message);
+            }
+            continue;
+        }
+        let span = span.unwrap_or_default();
+        let annotation_label = if !label.is_empty() {
+            label
+        } else if matches!(additional_kind, AdditionalKind::Label) {
+            continue;
+        } else {
+            message.clone()
+        };
+        let footer_message = if !message.is_empty() && message != annotation_label {
+            Some(message)
+        } else {
+            None
+        };
+        let origin = span.uri().to_string();
+        stored.push(StoredAdditional {
+            span,
+            origin,
+            annotation_label,
+            footer_message,
+        });
+    }
     let uri = primary_span.uri().to_string();
     let mut slices = vec![Slice {
         source: primary_span.source_text().as_ref(),
@@ -45,32 +83,30 @@ pub(crate) fn fmt_as_annotate_snippets<T: ErrorType + ?Sized>(
         }],
         fold: true,
     }];
-    let additional = error
-        .additional()
-        .map(|(span, msg, label)| (label.to_string(), (msg, span)))
-        .collect::<Vec<_>>();
-    for (label, (_, span)) in additional.iter() {
-        let mut annotations = vec![];
-        if let Some(span) = span {
-            annotations.push(SourceAnnotation {
-                range: (span.range().start, span.range().end),
-                label: label.as_ref(),
-                annotation_type: kind.into(),
-            });
+    for item in &stored {
+        if let Some(message) = &item.footer_message {
+            footer_messages.push(message.clone());
         }
-        let source = if let Some(span) = &span {
-            span.source_text().as_ref()
-        } else {
-            primary_span.source_text().as_ref()
-        };
         slices.push(Slice {
-            source,
+            source: item.span.source_text().as_ref(),
             line_start: 1,
-            origin: Some(&uri),
-            annotations,
+            origin: Some(&item.origin),
+            annotations: vec![SourceAnnotation {
+                range: (item.span.range().start, item.span.range().end),
+                label: &item.annotation_label,
+                annotation_type: kind.into(),
+            }],
             fold: true,
         });
     }
+    let footer = footer_messages
+        .iter()
+        .map(|message| Annotation {
+            id: None,
+            label: Some(message.as_str()),
+            annotation_type: AnnotationType::Note,
+        })
+        .collect();
     let snippet = Snippet {
         title,
         footer,

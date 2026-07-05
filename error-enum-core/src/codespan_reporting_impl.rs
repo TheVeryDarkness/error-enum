@@ -1,5 +1,5 @@
-use crate::{ErrorType, Kind, Span};
-use alloc::string::{String, ToString as _};
+use crate::{AdditionalKind, ErrorType, Kind, Span};
+use alloc::{format, string::{String, ToString as _}, vec, vec::Vec};
 use codespan_reporting::{
     diagnostic::{Diagnostic, Label, LabelStyle, Severity},
     files::{Error, SimpleFiles},
@@ -23,17 +23,33 @@ pub(crate) fn to_codespan_diagnostic<T: ErrorType + ?Sized>(
     value: &T,
 ) -> (Diagnostic<usize>, Files<T>) {
     let primary_span = value.primary_span().unwrap_or_default();
+    let mut labels = vec![Label::new(LabelStyle::Primary, 0, primary_span.range())
+        .with_message(value.primary_label())];
+    let mut notes = Vec::new();
+    for (span, message, label, kind) in value.additional() {
+        match kind {
+            AdditionalKind::Note => notes.push(message.to_string()),
+            AdditionalKind::Help => notes.push(format!("help: {message}")),
+            AdditionalKind::Label => {
+                if span.is_some() && !label.to_string().is_empty() {
+                    if let Some(span) = span {
+                        labels.push(
+                            Label::new(LabelStyle::Secondary, 0, span.range())
+                                .with_message(label.to_string()),
+                        );
+                    }
+                } else if !label.to_string().is_empty() {
+                    notes.push(label.to_string());
+                }
+            }
+        }
+    }
     let diagnostic = Diagnostic {
         severity: value.kind().into(),
         code: Some(value.code().into()),
         message: value.primary_message().to_string(),
-        labels: [Label::new(LabelStyle::Primary, 0, primary_span.range())
-            .with_message(value.primary_label())]
-        .into(),
-        notes: value
-            .additional()
-            .map(|(_, _, message)| message.to_string())
-            .collect(),
+        labels: labels.into(),
+        notes,
     };
 
     // FIXME: implement my own `Files` to avoid cloning source texts and indexes

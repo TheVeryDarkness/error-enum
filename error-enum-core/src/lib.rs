@@ -30,6 +30,17 @@ mod codespan_reporting_impl;
 #[cfg(feature = "miette")]
 mod miette_impl;
 
+/// Kind of an additional diagnostic.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum AdditionalKind {
+    /// Additional note.
+    Note,
+    /// Additional help.
+    Help,
+    /// Secondary span label.
+    Label,
+}
+
 /// Iterator over additional diagnostics of an [`ErrorType`].
 pub type IterAdditional<T> = Box<
     dyn Iterator<
@@ -37,6 +48,7 @@ pub type IterAdditional<T> = Box<
             Option<<T as ErrorType>::Span>,
             <T as ErrorType>::Message,
             <T as ErrorType>::Label,
+            AdditionalKind,
         ),
     >,
 >;
@@ -100,7 +112,7 @@ pub trait ErrorType: core::error::Error {
         )
     }
 
-    /// Get additional spans, messages, and labels of the error.
+    /// Get additional spans, messages, labels, and kinds of the error.
     fn additional(&self) -> IterAdditional<Self>;
 }
 

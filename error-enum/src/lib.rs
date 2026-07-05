@@ -20,6 +20,7 @@
 //! ```
 
 pub use error_enum_core::{
-    format, Box, ErrorType, ErrorTypeExt, Indexer, Kind, LineIndexer, SimpleSpan, Span, String,
+    format, AdditionalKind, Box, ErrorType, ErrorTypeExt, Indexer, Kind, LineIndexer, SimpleSpan,
+    Span, String,
 };
 pub use error_enum_macros::{error_type, ErrorType};

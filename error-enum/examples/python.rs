@@ -28,7 +28,7 @@ error_type! {
                 String,
                 #[diag(span)]
                 SimpleSpan,
-                #[diag(help = "consider reformatting the token `{0}`")]
+                #[diag(help("consider reformatting the token `{0}`"))]
                 SimpleSpan,
             )
         },
@@ -49,7 +49,7 @@ error_type! {
                     /// Actual type.
                     actual_ty: String,
                     /// Note span of the expected type.
-                    #[diag(note = "expected because of this term")]
+                    #[diag(note("expected because of this term"))]
                     note: SimpleSpan,
                     /// Span of the term.
                     #[diag(span)]
