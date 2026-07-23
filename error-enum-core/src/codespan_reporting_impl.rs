@@ -1,4 +1,4 @@
-use crate::{labels::group_labels_by_source, DiagnosticKind, ErrorType, Span};
+use crate::{label_groups::group_labels_by_source, DiagnosticKind, ErrorType, Span};
 use alloc::{
     string::{String, ToString as _},
     vec::Vec,

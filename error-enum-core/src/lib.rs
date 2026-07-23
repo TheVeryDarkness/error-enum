@@ -21,6 +21,8 @@ extern crate alloc;
 extern crate std;
 
 mod indexer;
+#[cfg(any(feature = "annotate-snippets", feature = "codespan-reporting"))]
+mod label_groups;
 mod labels;
 mod span;
 
@@ -168,7 +170,11 @@ pub trait ErrorType: core::error::Error {
     /// Default: [`DiagnosticKind::code_prefix`] concatenated with [`number`](Self::number)
     /// as [`Cow::Owned`] (e.g. `"E0"`, `"W1"`; nested merge yields `"E0123"`).
     fn code(&self) -> Cow<'_, str> {
-        Cow::Owned(alloc::format!("{}{}", self.kind().code_prefix(), self.number()))
+        Cow::Owned(alloc::format!(
+            "{}{}",
+            self.kind().code_prefix(),
+            self.number()
+        ))
     }
     /// Get the primary span of the error.
     ///
