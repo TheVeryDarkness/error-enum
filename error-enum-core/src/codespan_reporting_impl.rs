@@ -84,7 +84,7 @@ pub(crate) fn to_codespan_diagnostic<T: ErrorType + ?Sized>(
     }
     let diagnostic = Diagnostic {
         severity: value.kind().as_codespan(),
-        code: Some(value.code()),
+        code: Some(value.code().into_owned()),
         message: value.primary_message().to_string(),
         labels,
         notes,

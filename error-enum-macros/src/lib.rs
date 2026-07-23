@@ -28,11 +28,11 @@ extern crate alloc;
 #[cfg(test)]
 mod tests;
 
-/// A tuple type with 3 identical types.
+/// A tuple type with 4 identical types.
 ///
 /// For `impl_error_enum_branch` and `impl_error_enum`,
-/// it means `(kind, number, primary_span)`.
-type Tuple3<T> = (T, T, T);
+/// it means `(kind, number, code, primary_span)`.
+type Tuple4<T> = (T, T, T, T);
 
 /// Tree node of error definitions.
 enum ErrorTree {
@@ -1305,8 +1305,17 @@ impl ErrorEnum {
         kind: Option<&KindValue>,
         number: &str,
         nested: bool,
-    ) -> Result<Tuple3<TokenStream2>> {
+    ) -> Result<Tuple4<TokenStream2>> {
         let prefix = self.variant(ident);
+        let kind_type = self.kind_type();
+
+        // Compile-time code prefix when known (`E` / `W`); `None` for expression kinds.
+        let static_prefix = match kind {
+            Some(KindValue::Builtin(k)) => Some(k.short_str()),
+            Some(KindValue::Expr(_)) => None,
+            None if self.config.kind_type.is_none() => Some("E"),
+            None => None,
+        };
 
         if nested {
             let (pat, inner) = Self::nested_field(fields)?;
@@ -1333,10 +1342,21 @@ impl ErrorEnum {
                     ::error_enum::ErrorType::number(#inner)
                 )),
             };
+            let code_arm = quote! {
+                #prefix #pat => {
+                    let __kind = ::error_enum::ErrorType::kind(#inner);
+                    ::error_enum::Cow::Owned(::error_enum::format!(
+                        "{}{}{}",
+                        ::error_enum::DiagnosticKind::code_prefix(&__kind),
+                        #number,
+                        ::error_enum::ErrorType::number(#inner)
+                    ))
+                }
+            };
             let primary_span_arm = quote! {
                 #prefix #pat => ::error_enum::ErrorType::primary_span(#inner),
             };
-            return Ok((kind_arm, number_arm, primary_span_arm));
+            return Ok((kind_arm, number_arm, code_arm, primary_span_arm));
         }
 
         let branch_ignored = match fields {
@@ -1345,17 +1365,30 @@ impl ErrorEnum {
             Fields::Unit => quote! {},
         };
 
-        let kind_type = self.kind_type();
         let kind_expr = kind.cloned().unwrap_or_else(|| {
             KindValue::Expr(parse_quote! {
                 <#kind_type as ::core::default::Default>::default()
             })
         });
-        let kind = quote! {
+        let kind_arm = quote! {
             #prefix #branch_ignored => #kind_expr,
         };
-        let number = quote! {
+        let number_arm = quote! {
             #prefix #branch_ignored => ::error_enum::Cow::Borrowed(#number),
+        };
+        let code_arm = if let Some(static_prefix) = static_prefix {
+            let code_lit = format!("{static_prefix}{number}");
+            quote! {
+                #prefix #branch_ignored => ::error_enum::Cow::Borrowed(#code_lit),
+            }
+        } else {
+            quote! {
+                #prefix #branch_ignored => ::error_enum::Cow::Owned(::error_enum::format!(
+                    "{}{}",
+                    ::error_enum::DiagnosticKind::code_prefix(&(#kind_expr)),
+                    #number
+                )),
+            }
         };
         let span_type = self.span_type();
         let span = if let Some(span_field) = span_field {
@@ -1382,9 +1415,9 @@ impl ErrorEnum {
                 #prefix => #span,
             },
         };
-        Ok((kind, number, primary_span))
+        Ok((kind_arm, number_arm, code_arm, primary_span))
     }
-    fn impl_error_enum(&self) -> Result<Tuple3<Vec<TokenStream2>>> {
+    fn impl_error_enum(&self) -> Result<Tuple4<Vec<TokenStream2>>> {
         self.iter()?
             .filter_map(|config| {
                 config
@@ -1481,7 +1514,7 @@ impl ErrorEnum {
             impl #impl_generics ::core::error::Error for #name #ty_generics #where_clause {}
         });
 
-        let (kind, number, primary_span) = self.impl_error_enum()?;
+        let (kind, number, code, primary_span) = self.impl_error_enum()?;
         let primary_labels = self.primary_labels()?;
         let additional = self.additional()?;
         let span_type = self.span_type();
@@ -1505,6 +1538,11 @@ impl ErrorEnum {
                 fn number(&self) -> ::error_enum::Cow<'_, ::core::primitive::str> {
                     match self {
                         #(#number)*
+                    }
+                }
+                fn code(&self) -> ::error_enum::Cow<'_, ::core::primitive::str> {
+                    match self {
+                        #(#code)*
                     }
                 }
                 fn primary_span(&self) -> #option_span_type {

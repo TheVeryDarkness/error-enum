@@ -23,7 +23,7 @@ A nested leaf must have **exactly one field** whose type implements `ErrorType` 
 
 Ancestor prefixes (non-leaf) may still set `kind` / `number` / `msg`. If an ancestor set `kind`, the generated `kind()` includes a `debug_assert_eq!` that the ancestor's `code_prefix` matches the inner error's.
 
-`number()` concatenates the outer number with `inner.number()` as `Cow::Owned`. Non-nested variants return `Cow::Borrowed`. The identity `code() == kind().code_prefix() + number()` still holds (default `code()`), e.g. outer `"01"` wrapping inner `"23"` with kind prefix `"E"` → `number() == "0123"`, `code() == "E0123"`.
+`number()` concatenates the outer number with `inner.number()` as `Cow::Owned`. Non-nested variants return `Cow::Borrowed`. The derive / `error_type!` macros generate `code()` as `Cow::Borrowed("E01")` when the kind prefix is known at compile time; nested (and expression `kind`) use `Cow::Owned` so `code() == kind().code_prefix() + number()` still holds (e.g. `"E0123"`).
 
 ```ignore
 error_type! {
@@ -131,7 +131,7 @@ Messages from `note("...")` and `help("...")` are passed through as-is; this cra
 | `additional()` 4-tuple         | `(Message, LabelVec1, Note\|Help)`   |
 | `AdditionalKind::Label`        | removed (labels live in `LabelVec1`) |
 | `fn kind(&self) -> Kind`       | `type Kind: DiagnosticKind` + `fn kind(&self) -> Self::Kind` |
-| `fn code(&self) -> &str`       | `fn code(&self) -> String` (default: `code_prefix` + `number`) |
+| `fn code(&self) -> &str`       | `fn code(&self) -> Cow<'_, str>` (default: `code_prefix` + `number`) |
 | `fn number(&self) -> &str`     | `fn number(&self) -> Cow<'_, str>` (`Borrowed` literal / `Owned` nested merge) |
 
 Primary labels on variants still use `#[diag(label = "...")]`.

@@ -54,6 +54,12 @@ fn test_error_type_with_derive_input() {
                         Self::IOError(..) => ::error_enum::Cow::Borrowed("01"),
                     }
                 }
+                fn code(&self) -> ::error_enum::Cow<'_, ::core::primitive::str> {
+                    match self {
+                        Self::ParseIntError(..) => ::error_enum::Cow::Borrowed("E00"),
+                        Self::IOError(..) => ::error_enum::Cow::Borrowed("E01"),
+                    }
+                }
                 fn primary_span(&self) -> ::core::option::Option<::error_enum::SimpleSpan> {
                     match self {
                         #[allow(unused_variables)]
@@ -149,6 +155,11 @@ fn test_error_type_with_derive_input() {
                 fn number(&self) -> ::error_enum::Cow<'_, ::core::primitive::str> {
                     match self {
                         Self(..) => ::error_enum::Cow::Borrowed(""),
+                    }
+                }
+                fn code(&self) -> ::error_enum::Cow<'_, ::core::primitive::str> {
+                    match self {
+                        Self(..) => ::error_enum::Cow::Borrowed("E"),
                     }
                 }
                 fn primary_span(&self) -> ::core::option::Option<::error_enum::SimpleSpan> {
@@ -262,6 +273,11 @@ fn test_error_type_with_derive_input() {
                         Self { .. } => ::error_enum::Cow::Borrowed(""),
                     }
                 }
+                fn code(&self) -> ::error_enum::Cow<'_, ::core::primitive::str> {
+                    match self {
+                        Self { .. } => ::error_enum::Cow::Borrowed("E"),
+                    }
+                }
                 fn primary_span(&self) -> ::core::option::Option<::error_enum::SimpleSpan> {
                     match self {
                         #[allow(unused_variables)]
@@ -372,6 +388,15 @@ fn custom_kind_type_and_expr() {
                 fn number(&self) -> ::error_enum::Cow<'_, ::core::primitive::str> {
                     match self {
                         Self => ::error_enum::Cow::Borrowed("01"),
+                    }
+                }
+                fn code(&self) -> ::error_enum::Cow<'_, ::core::primitive::str> {
+                    match self {
+                        Self => ::error_enum::Cow::Owned(::error_enum::format!(
+                            "{}{}",
+                            ::error_enum::DiagnosticKind::code_prefix(&(MyKind::Bug)),
+                            "01"
+                        )),
                     }
                 }
                 fn primary_span(&self) -> ::core::option::Option<::error_enum::SimpleSpan> {

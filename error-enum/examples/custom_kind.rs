@@ -69,11 +69,11 @@ error_type! {
 
 fn main() {
     let ice = CustomKindError::Ice;
-    assert_eq!(ice.code(), "B01");
+    assert_eq!(ice.code().as_ref(), "B01");
     assert_eq!(ice.kind(), MyKind::Bug);
 
     let hint = CustomKindError::StyleHint;
-    assert_eq!(hint.code(), "L02");
+    assert_eq!(hint.code().as_ref(), "L02");
     assert_eq!(hint.kind(), MyKind::Lint);
     println!("{ice} ({})", ice.code());
 }

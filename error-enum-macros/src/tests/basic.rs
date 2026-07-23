@@ -50,6 +50,11 @@ fn basic() {
                         Self::FileNotFound { .. } => ::error_enum::Cow::Borrowed("01"),
                     }
                 }
+                fn code(&self) -> ::error_enum::Cow<'_, ::core::primitive::str> {
+                    match self {
+                        Self::FileNotFound { .. } => ::error_enum::Cow::Borrowed("E01"),
+                    }
+                }
                 fn primary_span(&self) -> ::core::option::Option<::error_enum::SimpleSpan> {
                     match self {
                         #[allow(unused_variables)]
@@ -143,6 +148,11 @@ fn deep() {
                         Self::AccessDenied => ::error_enum::Cow::Borrowed("00"),
                     }
                 }
+                fn code(&self) -> ::error_enum::Cow<'_, ::core::primitive::str> {
+                    match self {
+                        Self::AccessDenied => ::error_enum::Cow::Borrowed("E00"),
+                    }
+                }
                 fn primary_span(&self) -> ::core::option::Option<::error_enum::SimpleSpan> {
                     match self {
                         Self::AccessDenied => ::core::option::Option::None,
@@ -227,6 +237,11 @@ fn escaped_braces_in_msg() {
                 fn number(&self) -> ::error_enum::Cow<'_, ::core::primitive::str> {
                     match self {
                         Self::FileNotFound(..) => ::error_enum::Cow::Borrowed("01"),
+                    }
+                }
+                fn code(&self) -> ::error_enum::Cow<'_, ::core::primitive::str> {
+                    match self {
+                        Self::FileNotFound(..) => ::error_enum::Cow::Borrowed("E01"),
                     }
                 }
                 fn primary_span(&self) -> ::core::option::Option<::error_enum::SimpleSpan> {

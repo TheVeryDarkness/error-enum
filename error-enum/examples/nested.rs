@@ -30,7 +30,7 @@ error_type! {
 fn main() {
     let err = Outer::Wrapped(Inner::Fail);
     assert_eq!(err.number().as_ref(), "0123");
-    assert_eq!(err.code(), "E0123");
+    assert_eq!(err.code().as_ref(), "E0123");
     assert_eq!(err.to_string(), "inner failure");
     println!("{err} ({})", err.code());
 }

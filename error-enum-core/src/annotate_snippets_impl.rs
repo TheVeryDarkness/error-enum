@@ -35,7 +35,7 @@ pub(crate) fn fmt_as_annotate_snippets<T: ErrorType + ?Sized>(
     let code = error.code();
     let annotation_type = error.kind().as_annotate_snippets();
     let title = Annotation {
-        id: Some(code.as_str()),
+        id: Some(code.as_ref()),
         label: Some(&primary_message),
         annotation_type,
     };

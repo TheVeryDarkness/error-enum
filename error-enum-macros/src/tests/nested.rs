@@ -62,6 +62,19 @@ fn nested() {
                         )),
                     }
                 }
+                fn code(&self) -> ::error_enum::Cow<'_, ::core::primitive::str> {
+                    match self {
+                        Self::FileError(inner) => {
+                            let __kind = ::error_enum::ErrorType::kind(inner);
+                            ::error_enum::Cow::Owned(::error_enum::format!(
+                                "{}{}{}",
+                                ::error_enum::DiagnosticKind::code_prefix(&__kind),
+                                "01",
+                                ::error_enum::ErrorType::number(inner)
+                            ))
+                        }
+                    }
+                }
                 fn primary_span(&self) -> ::core::option::Option<::error_enum::SimpleSpan> {
                     match self {
                         Self::FileError(inner) => ::error_enum::ErrorType::primary_span(inner),
