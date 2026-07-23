@@ -20,7 +20,7 @@
 //! ```
 
 pub use error_enum_core::{
-    format, vec1, AdditionalKind, Box, DiagnosticKind, ErrorType, ErrorTypeExt, Indexer, Kind,
+    format, vec1, AdditionalKind, Box, Cow, DiagnosticKind, ErrorType, ErrorTypeExt, Indexer, Kind,
     LabelVec1, LineIndexer, SimpleSpan, Span, SpannedLabel, String, Vec1,
 };
 pub use error_enum_macros::{error_type, ErrorType};

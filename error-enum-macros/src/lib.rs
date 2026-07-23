@@ -238,6 +238,7 @@ impl PendingItem {
 
 #[derive(Clone)]
 struct Config {
+    /// Inherited / effective kind after processing this node (ancestors + local).
     kind: Option<KindValue>,
     number: String,
     msg: Option<LitStr>,
@@ -465,15 +466,20 @@ impl Config {
         span: Span,
     ) -> Result<Self> {
         let mut kind = self.kind.clone();
+        let mut kind_local = None;
         let mut number = self.number.clone();
         let mut msg = self.msg.clone();
+        let mut msg_local = false;
         let mut label = self.label.clone();
+        let mut label_local = false;
+        // Inherit pending for struct-level notes/helps (derive); nested ignores inherited.
         let mut pending = self.pending.clone();
-        let mut span_field = self.span_field.clone();
+        let inherited_pending_len = pending.len();
+        let mut span_field = None;
         let mut span_type = self.span_type.clone();
         let mut kind_type = self.kind_type.clone();
         let depth = self.depth + 1;
-        let mut nested = self.nested;
+        let mut nested = false;
         let mut unused_attrs = Vec::new();
         let mut item_order = 0usize;
 
@@ -482,17 +488,20 @@ impl Config {
                 attr.parse_nested_meta(|meta| {
                     if meta.path.is_ident("kind") {
                         let value = meta.value()?;
-                        if value.peek(LitStr) {
+                        let parsed = if value.peek(LitStr) {
                             let lit: LitStr = value.parse()?;
-                            kind = Some(KindValue::Builtin(lit.try_into()?));
+                            KindValue::Builtin(lit.try_into()?)
                         } else {
                             let expr: Expr = value.parse()?;
-                            kind = Some(KindValue::Expr(expr));
-                        }
+                            KindValue::Expr(expr)
+                        };
+                        kind_local = Some(parsed.clone());
+                        kind = Some(parsed);
                     } else if meta.path.is_ident("label") {
                         if meta.input.peek(Token![=]) {
                             let value: LitStr = meta.value()?.parse()?;
                             label = Some(value);
+                            label_local = true;
                         } else {
                             return Err(meta.error(
                                 "`#[diag(label(\"...\"))]` on variants is invalid; use `#[diag(label = \"...\")]` for the primary label",
@@ -501,6 +510,7 @@ impl Config {
                     } else if meta.path.is_ident("msg") {
                         let value: LitStr = meta.value()?.parse()?;
                         msg = Some(value);
+                        msg_local = true;
                     } else if meta.path.is_ident("nested") {
                         nested = true;
                     } else if meta.path.is_ident("number") {
@@ -591,11 +601,28 @@ impl Config {
 
         let ident = ident.cloned();
         let fields = fields.cloned();
-        if kind_type.is_some() && matches!(kind, Some(KindValue::Builtin(_))) {
+        if kind_type.is_some() && matches!(&kind_local, Some(KindValue::Builtin(_))) {
             return Err(Error::new(
                 span,
                 "string `kind = \"...\"` is only valid with the built-in `Kind`; use `#[diag(kind = Expr)]` when `kind_type` is set",
             ));
+        }
+        if nested {
+            let local_pending = &pending[inherited_pending_len..];
+            Self::validate_nested(
+                span,
+                &ident,
+                fields.as_ref(),
+                &kind_local,
+                msg_local,
+                label_local,
+                local_pending,
+                span_field.as_ref(),
+            )?;
+            // Nested leaves delegate message/labels/subdiagnostics.
+            msg = None;
+            label = None;
+            pending.clear();
         }
         Ok(Self {
             kind,
@@ -613,6 +640,67 @@ impl Config {
             nested,
             span,
         })
+    }
+    #[expect(clippy::too_many_arguments)]
+    fn validate_nested(
+        span: Span,
+        ident: &Option<Ident>,
+        fields: Option<&Fields>,
+        kind_local: &Option<KindValue>,
+        msg_local: bool,
+        label_local: bool,
+        pending: &[PendingItem],
+        span_field: Option<&Ident>,
+    ) -> Result<()> {
+        let err_span = ident.as_ref().map_or(span, Ident::span);
+        let Some(fields) = fields else {
+            return Err(Error::new(
+                err_span,
+                "`#[diag(nested)]` requires a single-field variant",
+            ));
+        };
+        let field_count = match fields {
+            Fields::Named(named) => named.named.len(),
+            Fields::Unnamed(unnamed) => unnamed.unnamed.len(),
+            Fields::Unit => 0,
+        };
+        if field_count != 1 {
+            return Err(Error::new(
+                err_span,
+                "`#[diag(nested)]` requires exactly one field",
+            ));
+        }
+        if kind_local.is_some() {
+            return Err(Error::new(
+                err_span,
+                "`#[diag(nested)]` forbids `kind` on the nested leaf; set `kind` on ancestor prefixes only",
+            ));
+        }
+        if msg_local {
+            return Err(Error::new(
+                err_span,
+                "`#[diag(nested)]` forbids `msg`; messages are delegated to the inner error",
+            ));
+        }
+        if label_local {
+            return Err(Error::new(
+                err_span,
+                "`#[diag(nested)]` forbids `label`; labels are delegated to the inner error",
+            ));
+        }
+        if !pending.is_empty() {
+            return Err(Error::new(
+                err_span,
+                "`#[diag(nested)]` forbids `note` / `help` / field `label`; subdiagnostics are delegated to the inner error",
+            ));
+        }
+        if span_field.is_some() {
+            return Err(Error::new(
+                err_span,
+                "`#[diag(nested)]` forbids `#[diag(span)]`; the primary span is delegated to the inner error",
+            ));
+        }
+        Ok(())
     }
 }
 
@@ -936,6 +1024,26 @@ impl ErrorEnum {
             }
         })
     }
+    /// Pattern and binding for the sole field of a nested wrapper variant.
+    fn nested_field(fields: &Fields) -> Result<(TokenStream2, Ident)> {
+        match fields {
+            Fields::Named(named) if named.named.len() == 1 => {
+                let ident = named.named[0]
+                    .ident
+                    .clone()
+                    .ok_or_else(|| Error::new_spanned(&named.named[0], "expected named field"))?;
+                Ok((quote! { { #ident } }, ident))
+            }
+            Fields::Unnamed(unnamed) if unnamed.unnamed.len() == 1 => {
+                let ident = format_ident!("inner");
+                Ok((quote! { ( #ident ) }, ident))
+            }
+            _ => Err(Error::new(
+                Span::call_site(),
+                "`#[diag(nested)]` requires exactly one field",
+            )),
+        }
+    }
     fn display_branch(&self, ident: &Ident, fields: &Fields, msg: &LitStr) -> Result<TokenStream2> {
         let prefix = self.variant(ident);
         match fields {
@@ -959,19 +1067,33 @@ impl ErrorEnum {
             }),
         }
     }
+    fn display_nested_branch(&self, ident: &Ident, fields: &Fields) -> Result<TokenStream2> {
+        let prefix = self.variant(ident);
+        let (pat, inner) = Self::nested_field(fields)?;
+        Ok(quote! {
+            #prefix #pat => ::core::write!(f, "{}", #inner),
+        })
+    }
     fn display(&self) -> Result<Vec<TokenStream2>> {
         self.iter()?
             .filter_map(|config| {
                 config
                     .map(
                         |Config {
-                             msg, ident, fields, ..
-                         }| { Some((msg, ident?, fields?)) },
+                             msg,
+                             ident,
+                             fields,
+                             nested,
+                             ..
+                         }| { Some((msg, ident?, fields?, nested)) },
                     )
                     .transpose()
             })
             .map(|config| {
-                let (msg, ident, fields) = config?;
+                let (msg, ident, fields, nested) = config?;
+                if nested {
+                    return self.display_nested_branch(&ident, &fields);
+                }
                 let msg = msg.ok_or_else(|| {
                     Error::new_spanned(
                         &ident,
@@ -1019,15 +1141,23 @@ impl ErrorEnum {
                              label,
                              span_field,
                              pending,
+                             nested,
                              ..
                          }| {
-                            Some((msg, ident?, fields?, label, span_field, pending))
+                            Some((msg, ident?, fields?, label, span_field, pending, nested))
                         },
                     )
                     .transpose()
             })
             .map(|config| {
-                let (msg, ident, fields, label, span_field, pending) = config?;
+                let (msg, ident, fields, label, span_field, pending, nested) = config?;
+                if nested {
+                    let prefix = self.variant(&ident);
+                    let (pat, inner) = Self::nested_field(&fields)?;
+                    return Ok(quote! {
+                        #prefix #pat => ::error_enum::ErrorType::primary_labels(#inner),
+                    });
+                }
                 let config = Config {
                     pending,
                     ..Config::new(ident.span())
@@ -1140,15 +1270,23 @@ impl ErrorEnum {
                              label,
                              span_field,
                              pending,
+                             nested,
                              ..
                          }| {
-                            Some((ident?, fields?, msg, label, span_field, pending))
+                            Some((ident?, fields?, msg, label, span_field, pending, nested))
                         },
                     )
                     .transpose()
             })
             .map(|config| {
-                let (ident, fields, msg, label, span_field, pending) = config?;
+                let (ident, fields, msg, label, span_field, pending, nested) = config?;
+                if nested {
+                    let prefix = self.variant(&ident);
+                    let (pat, inner) = Self::nested_field(&fields)?;
+                    return Ok(quote! {
+                        #prefix #pat => ::error_enum::ErrorType::additional(#inner),
+                    });
+                }
                 let config = Config {
                     pending,
                     ..Config::new(ident.span())
@@ -1164,22 +1302,60 @@ impl ErrorEnum {
         ident: &Ident,
         fields: &Fields,
         span_field: Option<Ident>,
-        kind: &KindValue,
+        kind: Option<&KindValue>,
         number: &str,
+        nested: bool,
     ) -> Result<Tuple3<TokenStream2>> {
+        let prefix = self.variant(ident);
+
+        if nested {
+            let (pat, inner) = Self::nested_field(fields)?;
+            let kind_arm = if let Some(ancestor_kind) = kind {
+                quote! {
+                    #prefix #pat => {
+                        let __kind = ::error_enum::ErrorType::kind(#inner);
+                        ::core::debug_assert_eq!(
+                            ::error_enum::DiagnosticKind::code_prefix(&(#ancestor_kind)),
+                            ::error_enum::DiagnosticKind::code_prefix(&__kind),
+                        );
+                        __kind
+                    }
+                }
+            } else {
+                quote! {
+                    #prefix #pat => ::error_enum::ErrorType::kind(#inner),
+                }
+            };
+            let number_arm = quote! {
+                #prefix #pat => ::error_enum::Cow::Owned(::error_enum::format!(
+                    "{}{}",
+                    #number,
+                    ::error_enum::ErrorType::number(#inner)
+                )),
+            };
+            let primary_span_arm = quote! {
+                #prefix #pat => ::error_enum::ErrorType::primary_span(#inner),
+            };
+            return Ok((kind_arm, number_arm, primary_span_arm));
+        }
+
         let branch_ignored = match fields {
             Fields::Named(_) => quote! { { .. } },
             Fields::Unnamed(_) => quote! { (..) },
             Fields::Unit => quote! {},
         };
 
-        let prefix = self.variant(ident);
-
+        let kind_type = self.kind_type();
+        let kind_expr = kind.cloned().unwrap_or_else(|| {
+            KindValue::Expr(parse_quote! {
+                <#kind_type as ::core::default::Default>::default()
+            })
+        });
         let kind = quote! {
-            #prefix #branch_ignored => #kind,
+            #prefix #branch_ignored => #kind_expr,
         };
         let number = quote! {
-            #prefix #branch_ignored => #number,
+            #prefix #branch_ignored => ::error_enum::Cow::Borrowed(#number),
         };
         let span_type = self.span_type();
         let span = if let Some(span_field) = span_field {
@@ -1209,7 +1385,6 @@ impl ErrorEnum {
         Ok((kind, number, primary_span))
     }
     fn impl_error_enum(&self) -> Result<Tuple3<Vec<TokenStream2>>> {
-        let kind_type = self.kind_type();
         self.iter()?
             .filter_map(|config| {
                 config
@@ -1220,22 +1395,24 @@ impl ErrorEnum {
                              kind,
                              number,
                              span_field,
+                             nested,
                              ..
                          }| {
-                            Some((ident?, fields?, kind, number, span_field))
+                            Some((ident?, fields?, kind, number, span_field, nested))
                         },
                     )
                     .transpose()
             })
             .map(|config| {
-                let (ident, fields, kind, number, span_field) = config?;
-                let kind = kind.unwrap_or_else(|| {
-                    // Use Default::default() for the configured kind type when unset.
-                    KindValue::Expr(parse_quote! {
-                        <#kind_type as ::core::default::Default>::default()
-                    })
-                });
-                self.impl_error_enum_branch(&ident, &fields, span_field, &kind, &number)
+                let (ident, fields, kind, number, span_field, nested) = config?;
+                self.impl_error_enum_branch(
+                    &ident,
+                    &fields,
+                    span_field,
+                    kind.as_ref(),
+                    &number,
+                    nested,
+                )
             })
             .collect()
     }
@@ -1325,7 +1502,7 @@ impl ErrorEnum {
                         #(#kind)*
                     }
                 }
-                fn number(&self) -> &::core::primitive::str {
+                fn number(&self) -> ::error_enum::Cow<'_, ::core::primitive::str> {
                     match self {
                         #(#number)*
                     }

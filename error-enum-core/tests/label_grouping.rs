@@ -4,7 +4,7 @@
 #![allow(clippy::unwrap_used)]
 
 use core::fmt;
-use error_enum_core::{vec1, ErrorType, ErrorTypeExt, Kind, LabelVec1, SimpleSpan};
+use error_enum_core::{vec1, Cow, ErrorType, ErrorTypeExt, Kind, LabelVec1, SimpleSpan};
 
 #[derive(Debug)]
 struct MultiLabelError {
@@ -28,8 +28,8 @@ impl ErrorType for MultiLabelError {
     fn kind(&self) -> Kind {
         Kind::Error
     }
-    fn number(&self) -> &str {
-        "0"
+    fn number(&self) -> Cow<'_, str> {
+        Cow::Borrowed("0")
     }
     fn primary_span(&self) -> Option<Self::Span> {
         Some(self.labels.first().0.clone())

@@ -9,9 +9,35 @@
 | `#[diag(msg    = $msg:lit_str)]`          | `$msg` is the error message.                                               |
 | `#[diag(label  = $label:lit_str)]`        | `$label` is the primary span label.                                        |
 | `#[diag(span_type = $span_type:lit_str)]` | `$span_type` is the type of the span. Default is `error_enum::SimpleSpan`. |
-| `#[diag(nested)]`                         | Mark this variant as a nested error wrapper.                               |
+| `#[diag(nested)]`                         | Single-field wrapper: delegate diagnostics to the inner `ErrorType`. See [Nested](#nested-diagnested). |
 
 String `kind = "..."` is invalid when `kind_type` is set; use an expression instead.
+
+## Nested (`#[diag(nested)]`)
+
+A nested leaf must have **exactly one field** whose type implements `ErrorType` with the same associated types. It forwards `kind`, `primary_message` (via `Display`), `primary_labels`, `primary_span`, `additional`, and `Display` to that field.
+
+| Allowed on nested leaf | Forbidden on nested leaf |
+| ---------------------- | ------------------------ |
+| `number` (merged)      | `kind`, `msg`, `label`, `note`, `help`, field `span` / `label` / `note` / `help` |
+
+Ancestor prefixes (non-leaf) may still set `kind` / `number` / `msg`. If an ancestor set `kind`, the generated `kind()` includes a `debug_assert_eq!` that the ancestor's `code_prefix` matches the inner error's.
+
+`number()` concatenates the outer number with `inner.number()` as `Cow::Owned`. Non-nested variants return `Cow::Borrowed`. The identity `code() == kind().code_prefix() + number()` still holds (default `code()`), e.g. outer `"01"` wrapping inner `"23"` with kind prefix `"E"` → `number() == "0123"`, `code() == "E0123"`.
+
+```ignore
+error_type! {
+    #[derive(Debug)]
+    Outer {
+        #[diag(kind = "Error")]
+        {
+            #[diag(number = "01")]
+            #[diag(nested)]
+            Wrapped(Inner),
+        }
+    }
+}
+```
 
 ## Custom `DiagnosticKind`
 
@@ -106,5 +132,6 @@ Messages from `note("...")` and `help("...")` are passed through as-is; this cra
 | `AdditionalKind::Label`        | removed (labels live in `LabelVec1`) |
 | `fn kind(&self) -> Kind`       | `type Kind: DiagnosticKind` + `fn kind(&self) -> Self::Kind` |
 | `fn code(&self) -> &str`       | `fn code(&self) -> String` (default: `code_prefix` + `number`) |
+| `fn number(&self) -> &str`     | `fn number(&self) -> Cow<'_, str>` (`Borrowed` literal / `Owned` nested merge) |
 
 Primary labels on variants still use `#[diag(label = "...")]`.
