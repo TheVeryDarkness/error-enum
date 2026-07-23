@@ -19,8 +19,8 @@ use syn::{
     parse_macro_input, parse_quote,
     punctuated::{self, Punctuated},
     token::{self, Brace},
-    Attribute, DeriveInput, Error, Fields, Generics, Ident, LitStr, Result, Token, Type, Variant,
-    Visibility,
+    Attribute, DeriveInput, Error, Expr, Fields, Generics, Ident, LitStr, Result, Token, Type,
+    Variant, Visibility,
 };
 
 extern crate alloc;
@@ -28,11 +28,11 @@ extern crate alloc;
 #[cfg(test)]
 mod tests;
 
-/// A tuple type with 4 identical types.
+/// A tuple type with 3 identical types.
 ///
 /// For `impl_error_enum_branch` and `impl_error_enum`,
-/// it means `(kind, number, code, primary_span)`.
-type Tuple4<T> = (T, T, T, T);
+/// it means `(kind, number, primary_span)`.
+type Tuple3<T> = (T, T, T);
 
 /// Tree node of error definitions.
 enum ErrorTree {
@@ -111,43 +111,74 @@ impl Parse for ErrorTree {
 }
 
 #[derive(Clone, Copy, Default)]
-enum Kind {
+enum BuiltinKind {
     #[default]
     Error,
     Warn,
 }
 
-impl Kind {
-    fn short_str(&self) -> &'static str {
+impl BuiltinKind {
+    fn short_str(self) -> &'static str {
         match self {
-            Kind::Error => "E",
-            Kind::Warn => "W",
+            BuiltinKind::Error => "E",
+            BuiltinKind::Warn => "W",
         }
     }
 }
 
-impl TryFrom<LitStr> for Kind {
+impl TryFrom<LitStr> for BuiltinKind {
     type Error = Error;
 
     fn try_from(value: LitStr) -> Result<Self> {
         match value.value().as_str() {
-            "error" | "Error" => Ok(Kind::Error),
-            "warn" | "Warn" => Ok(Kind::Warn),
+            "error" | "Error" => Ok(BuiltinKind::Error),
+            "warn" | "Warn" => Ok(BuiltinKind::Warn),
             _ => Err(Error::new_spanned(
                 value,
-                "Kind must be either `Error` or `Warn`.",
+                "string `kind` must be either `Error` or `Warn`; use an expression for custom kinds",
             )),
         }
     }
 }
 
-impl ToTokens for Kind {
+impl ToTokens for BuiltinKind {
     fn to_tokens(&self, tokens: &mut TokenStream2) {
         let kind = match self {
-            Kind::Error => quote! { ::error_enum::Kind::Error },
-            Kind::Warn => quote! { ::error_enum::Kind::Warn },
+            BuiltinKind::Error => quote! { ::error_enum::Kind::Error },
+            BuiltinKind::Warn => quote! { ::error_enum::Kind::Warn },
         };
         tokens.extend(kind);
+    }
+}
+
+/// Parsed `#[diag(kind = ...)]` value.
+#[derive(Clone)]
+enum KindValue {
+    Builtin(BuiltinKind),
+    Expr(Expr),
+}
+
+impl Default for KindValue {
+    fn default() -> Self {
+        Self::Builtin(BuiltinKind::Error)
+    }
+}
+
+impl KindValue {
+    fn doc_prefix(&self) -> Cow<'_, str> {
+        match self {
+            KindValue::Builtin(kind) => Cow::Borrowed(kind.short_str()),
+            KindValue::Expr(_) => Cow::Borrowed(""),
+        }
+    }
+}
+
+impl ToTokens for KindValue {
+    fn to_tokens(&self, tokens: &mut TokenStream2) {
+        match self {
+            KindValue::Builtin(kind) => kind.to_tokens(tokens),
+            KindValue::Expr(expr) => expr.to_tokens(tokens),
+        }
     }
 }
 
@@ -207,7 +238,7 @@ impl PendingItem {
 
 #[derive(Clone)]
 struct Config {
-    kind: Option<Kind>,
+    kind: Option<KindValue>,
     number: String,
     msg: Option<LitStr>,
     attrs: Vec<Attribute>,
@@ -216,6 +247,7 @@ struct Config {
     span_field: Option<Ident>,
     // FIXME: move to `ErrorEnum` for better performance?
     span_type: Option<Type>,
+    kind_type: Option<Type>,
     label: Option<LitStr>,
     pending: Vec<PendingItem>,
     depth: usize,
@@ -417,6 +449,7 @@ impl Config {
             fields: None,
             span_field: None,
             span_type: None,
+            kind_type: None,
             label: None,
             pending: Vec::new(),
             depth: 0,
@@ -431,13 +464,14 @@ impl Config {
         fields: Option<&Fields>,
         span: Span,
     ) -> Result<Self> {
-        let mut kind = self.kind;
+        let mut kind = self.kind.clone();
         let mut number = self.number.clone();
         let mut msg = self.msg.clone();
         let mut label = self.label.clone();
         let mut pending = self.pending.clone();
         let mut span_field = self.span_field.clone();
         let mut span_type = self.span_type.clone();
+        let mut kind_type = self.kind_type.clone();
         let depth = self.depth + 1;
         let mut nested = self.nested;
         let mut unused_attrs = Vec::new();
@@ -447,8 +481,14 @@ impl Config {
             if attr.path().is_ident("diag") {
                 attr.parse_nested_meta(|meta| {
                     if meta.path.is_ident("kind") {
-                        let value: LitStr = meta.value()?.parse()?;
-                        kind = Some(value.try_into()?);
+                        let value = meta.value()?;
+                        if value.peek(LitStr) {
+                            let lit: LitStr = value.parse()?;
+                            kind = Some(KindValue::Builtin(lit.try_into()?));
+                        } else {
+                            let expr: Expr = value.parse()?;
+                            kind = Some(KindValue::Expr(expr));
+                        }
                     } else if meta.path.is_ident("label") {
                         if meta.input.peek(Token![=]) {
                             let value: LitStr = meta.value()?.parse()?;
@@ -469,6 +509,9 @@ impl Config {
                     } else if meta.path.is_ident("span_type") {
                         let value: LitStr = meta.value()?.parse()?;
                         span_type = Some(value.parse()?);
+                    } else if meta.path.is_ident("kind_type") {
+                        let value: LitStr = meta.value()?.parse()?;
+                        kind_type = Some(value.parse()?);
                     } else if meta.path.is_ident("note") {
                         let order = item_order;
                         item_order += 1;
@@ -548,6 +591,12 @@ impl Config {
 
         let ident = ident.cloned();
         let fields = fields.cloned();
+        if kind_type.is_some() && matches!(kind, Some(KindValue::Builtin(_))) {
+            return Err(Error::new(
+                span,
+                "string `kind = \"...\"` is only valid with the built-in `Kind`; use `#[diag(kind = Expr)]` when `kind_type` is set",
+            ));
+        }
         Ok(Self {
             kind,
             number,
@@ -557,6 +606,7 @@ impl Config {
             fields,
             span_field,
             span_type,
+            kind_type,
             label,
             pending,
             depth,
@@ -793,18 +843,25 @@ impl ErrorEnum {
                     ident,
                     msg,
                     kind,
+                    kind_type,
                     ..
                 } = config?;
                 let indent = "  ".repeat(depth - 2);
                 let msg = msg.as_ref().map(|s| s.value());
-                let kind = kind.unwrap_or_default().short_str();
+                let kind_prefix = match &kind {
+                    Some(kind) => kind.doc_prefix(),
+                    None if kind_type.is_none() => Cow::Borrowed("E"),
+                    None => Cow::Borrowed(""),
+                };
                 Ok(match (ident, msg) {
                     (Some(ident), Some(msg)) => {
-                        format!("{indent}- `{kind}{number}`(**{ident}**): {msg}")
+                        format!("{indent}- `{kind_prefix}{number}`(**{ident}**): {msg}")
                     }
-                    (None, Some(msg)) => format!("{indent}- `{kind}{number}`: {msg}"),
-                    (Some(ident), None) => format!("{indent}- `{kind}{number}`(**{ident}**)"),
-                    (None, None) => format!("{indent}- `{kind}{number}`"),
+                    (None, Some(msg)) => format!("{indent}- `{kind_prefix}{number}`: {msg}"),
+                    (Some(ident), None) => {
+                        format!("{indent}- `{kind_prefix}{number}`(**{ident}**)")
+                    }
+                    (None, None) => format!("{indent}- `{kind_prefix}{number}`"),
                 })
             })
             .collect()
@@ -821,18 +878,22 @@ impl ErrorEnum {
                              attrs,
                              ident,
                              fields,
+                             kind_type,
                              ..
                          }| {
-                            Some((kind, msg, number, attrs, ident?, fields?))
+                            Some((kind, msg, number, attrs, ident?, fields?, kind_type))
                         },
                     )
                     .transpose()
             })
             .map(|config| {
-                let (kind, msg, number, mut attrs, ident, mut fields) = config?;
+                let (kind, msg, number, mut attrs, ident, mut fields, kind_type) = config?;
 
-                let kind = kind.unwrap_or_default();
-                let code = format!("{}{}", kind.short_str(), number);
+                let code = match &kind {
+                    Some(kind) => format!("{}{}", kind.doc_prefix(), number),
+                    None if kind_type.is_none() => format!("E{number}"),
+                    None => number.clone(),
+                };
 
                 let doc = match msg {
                     Some(msg) => {
@@ -1103,15 +1164,14 @@ impl ErrorEnum {
         ident: &Ident,
         fields: &Fields,
         span_field: Option<Ident>,
-        kind: &Kind,
+        kind: &KindValue,
         number: &str,
-    ) -> Result<Tuple4<TokenStream2>> {
+    ) -> Result<Tuple3<TokenStream2>> {
         let branch_ignored = match fields {
             Fields::Named(_) => quote! { { .. } },
             Fields::Unnamed(_) => quote! { (..) },
             Fields::Unit => quote! {},
         };
-        let code = format!("{}{}", kind.short_str(), number);
 
         let prefix = self.variant(ident);
 
@@ -1120,9 +1180,6 @@ impl ErrorEnum {
         };
         let number = quote! {
             #prefix #branch_ignored => #number,
-        };
-        let code = quote! {
-            #prefix #branch_ignored => #code,
         };
         let span_type = self.span_type();
         let span = if let Some(span_field) = span_field {
@@ -1149,9 +1206,10 @@ impl ErrorEnum {
                 #prefix => #span,
             },
         };
-        Ok((kind, number, code, primary_span))
+        Ok((kind, number, primary_span))
     }
-    fn impl_error_enum(&self) -> Result<Tuple4<Vec<TokenStream2>>> {
+    fn impl_error_enum(&self) -> Result<Tuple3<Vec<TokenStream2>>> {
+        let kind_type = self.kind_type();
         self.iter()?
             .filter_map(|config| {
                 config
@@ -1171,7 +1229,12 @@ impl ErrorEnum {
             })
             .map(|config| {
                 let (ident, fields, kind, number, span_field) = config?;
-                let kind = kind.unwrap_or_default();
+                let kind = kind.unwrap_or_else(|| {
+                    // Use Default::default() for the configured kind type when unset.
+                    KindValue::Expr(parse_quote! {
+                        <#kind_type as ::core::default::Default>::default()
+                    })
+                });
                 self.impl_error_enum_branch(&ident, &fields, span_field, &kind, &number)
             })
             .collect()
@@ -1181,6 +1244,16 @@ impl ErrorEnum {
             || {
                 Cow::Owned(parse_quote! {
                     ::error_enum::SimpleSpan
+                })
+            },
+            Cow::Borrowed,
+        )
+    }
+    fn kind_type(&self) -> Cow<'_, Type> {
+        self.config.kind_type.as_ref().map_or_else(
+            || {
+                Cow::Owned(parse_quote! {
+                    ::error_enum::Kind
                 })
             },
             Cow::Borrowed,
@@ -1231,10 +1304,11 @@ impl ErrorEnum {
             impl #impl_generics ::core::error::Error for #name #ty_generics #where_clause {}
         });
 
-        let (kind, number, code, primary_span) = self.impl_error_enum()?;
+        let (kind, number, primary_span) = self.impl_error_enum()?;
         let primary_labels = self.primary_labels()?;
         let additional = self.additional()?;
         let span_type = self.span_type();
+        let kind_type = self.kind_type();
         let option_span_type: Type = parse_quote!(::core::option::Option<#span_type>);
         let msg_type: Type = parse_quote!(::error_enum::String);
         let box_type: Type = parse_quote!(::error_enum::Box);
@@ -1242,10 +1316,11 @@ impl ErrorEnum {
         tokens.extend(quote! {
             impl #impl_generics ::error_enum::ErrorType for #name #ty_generics #where_clause {
                 type Span = #span_type;
+                type Kind = #kind_type;
                 type Message = #msg_type;
                 type Label = #msg_type;
 
-                fn kind(&self) -> ::error_enum::Kind {
+                fn kind(&self) -> Self::Kind {
                     match self {
                         #(#kind)*
                     }
@@ -1253,11 +1328,6 @@ impl ErrorEnum {
                 fn number(&self) -> &::core::primitive::str {
                     match self {
                         #(#number)*
-                    }
-                }
-                fn code(&self) -> &::core::primitive::str {
-                    match self {
-                        #(#code)*
                     }
                 }
                 fn primary_span(&self) -> #option_span_type {

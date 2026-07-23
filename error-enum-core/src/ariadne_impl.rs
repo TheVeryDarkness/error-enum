@@ -1,20 +1,11 @@
-use crate::{AdditionalKind, ErrorType, Kind, Span};
+use crate::{AdditionalKind, DiagnosticKind, ErrorType, Span};
 use alloc::{
     string::{String, ToString as _},
     vec::Vec,
 };
-use ariadne::{Config, Label, Report, ReportKind};
+use ariadne::{Config, Label, Report};
 use core::fmt;
 use std::io;
-
-impl From<Kind> for ReportKind<'_> {
-    fn from(kind: Kind) -> Self {
-        match kind {
-            Kind::Error => ReportKind::Error,
-            Kind::Warn => ReportKind::Warning,
-        }
-    }
-}
 
 pub(crate) struct SpanWrapper<T>(T);
 
@@ -108,7 +99,7 @@ pub(crate) fn to_ariadne_report<T: ErrorType + ?Sized>(
         }
     }
     let cache: Cache<T> = Cache::from_iter(spans);
-    let mut builder = Report::build(error.kind().into(), SpanWrapper(primary_span.clone()))
+    let mut builder = Report::build(error.kind().as_ariadne(), SpanWrapper(primary_span.clone()))
         .with_code(error.code())
         .with_message(error.primary_message())
         .with_config(config);

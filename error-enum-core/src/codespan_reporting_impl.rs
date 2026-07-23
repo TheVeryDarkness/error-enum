@@ -1,23 +1,14 @@
-use crate::{labels::group_labels_by_source, ErrorType, Kind, Span};
+use crate::{labels::group_labels_by_source, DiagnosticKind, ErrorType, Span};
 use alloc::{
     string::{String, ToString as _},
     vec::Vec,
 };
 use codespan_reporting::{
-    diagnostic::{Diagnostic, Label, LabelStyle, Severity},
+    diagnostic::{Diagnostic, Label, LabelStyle},
     files::{Error, SimpleFiles},
     term::{termcolor::Buffer, Config, Styles, StylesWriter},
 };
 use std::io;
-
-impl From<Kind> for Severity {
-    fn from(kind: Kind) -> Self {
-        match kind {
-            Kind::Error => Severity::Error,
-            Kind::Warn => Severity::Warning,
-        }
-    }
-}
 
 pub(crate) type Files<T> =
     SimpleFiles<<<T as ErrorType>::Span as Span>::Uri, <<T as ErrorType>::Span as Span>::Source>;
@@ -92,8 +83,8 @@ pub(crate) fn to_codespan_diagnostic<T: ErrorType + ?Sized>(
         }
     }
     let diagnostic = Diagnostic {
-        severity: value.kind().into(),
-        code: Some(value.code().into()),
+        severity: value.kind().as_codespan(),
+        code: Some(value.code()),
         message: value.primary_message().to_string(),
         labels,
         notes,

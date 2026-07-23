@@ -26,6 +26,12 @@ pub trait Span: Clone {
     /// Get the URI of the span.
     fn uri(&self) -> &Self::Uri;
     /// Check if the source text of the span is shared with another span.
+    ///
+    /// # Note
+    ///
+    /// This method may be insufficient for some use cases. For example, if `Uri` is `String`,
+    /// this method will compare the string contents directly, which is `O(n)` time complexity.
+    /// In such cases, please implement your own `share_source_text` method.
     fn share_source_text(&self, other: &Self) -> bool {
         self.uri() == other.uri() && self.source_text() == other.source_text()
     }

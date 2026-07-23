@@ -60,7 +60,7 @@ error_type! {
 fn basic() {
     let error = ColoredError::RedError(1, 2);
 
-    assert_eq(error.code(), "E01");
+    assert_eq(&error.code(), "E01");
 }
 
 #[test]

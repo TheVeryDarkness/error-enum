@@ -21,6 +21,7 @@ impl fmt::Display for MultiLabelError {
 
 impl ErrorType for MultiLabelError {
     type Span = SimpleSpan;
+    type Kind = Kind;
     type Message = String;
     type Label = String;
 
@@ -29,9 +30,6 @@ impl ErrorType for MultiLabelError {
     }
     fn number(&self) -> &str {
         "0"
-    }
-    fn code(&self) -> &str {
-        "E0"
     }
     fn primary_span(&self) -> Option<Self::Span> {
         Some(self.labels.first().0.clone())

@@ -1,4 +1,4 @@
-use crate::{labels::group_labels_by_source, AdditionalKind, ErrorType, Kind, Span};
+use crate::{labels::group_labels_by_source, AdditionalKind, DiagnosticKind, ErrorType, Span};
 use alloc::{
     string::{String, ToString as _},
     vec::Vec,
@@ -8,14 +8,6 @@ use annotate_snippets::{
     snippet::{Annotation, AnnotationType, Slice, Snippet, SourceAnnotation},
 };
 
-impl From<Kind> for AnnotationType {
-    fn from(value: Kind) -> Self {
-        match value {
-            Kind::Error => AnnotationType::Error,
-            Kind::Warn => AnnotationType::Warning,
-        }
-    }
-}
 impl From<AdditionalKind> for AnnotationType {
     fn from(value: AdditionalKind) -> Self {
         match value {
@@ -40,18 +32,19 @@ pub(crate) fn fmt_as_annotate_snippets<T: ErrorType + ?Sized>(
 ) -> String {
     let primary_message = error.primary_message().to_string();
     let primary_labels = error.primary_labels();
-    let kind = error.kind();
+    let code = error.code();
+    let annotation_type = error.kind().as_annotate_snippets();
     let title = Annotation {
-        id: Some(error.code()),
+        id: Some(code.as_str()),
         label: Some(&primary_message),
-        annotation_type: kind.into(),
+        annotation_type,
     };
     let title = Some(title);
     let mut footer_entries: Vec<(String, AdditionalKind)> = Vec::new();
     let mut ordered_labels: Vec<(usize, T::Span, (String, AnnotationType))> = Vec::new();
     let mut order = 0usize;
     for (span, label) in primary_labels.iter().cloned() {
-        ordered_labels.push((order, span, (label.to_string(), kind.into())));
+        ordered_labels.push((order, span, (label.to_string(), annotation_type)));
         order += 1;
     }
     for (message, labels, additional_kind) in error.additional() {

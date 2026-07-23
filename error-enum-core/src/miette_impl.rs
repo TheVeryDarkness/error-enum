@@ -1,4 +1,4 @@
-use crate::{AdditionalKind, ErrorType, Indexer, Kind, Span};
+use crate::{AdditionalKind, DiagnosticKind, ErrorType, Indexer, Span};
 use alloc::{
     boxed::Box,
     string::{String, ToString as _},
@@ -45,10 +45,7 @@ impl<T: ErrorType + ?Sized, S: Span + Send + Sync> Diagnostic for Wrapper<'_, T,
         Some(Box::new(self.0.code()))
     }
     fn severity(&self) -> Option<Severity> {
-        match self.0.kind() {
-            Kind::Error => Some(Severity::Error),
-            Kind::Warn => Some(Severity::Warning),
-        }
+        Some(self.0.kind().as_miette())
     }
     fn source_code(&self) -> Option<&dyn miette::SourceCode> {
         Some(&self.1)

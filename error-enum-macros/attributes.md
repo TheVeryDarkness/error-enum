@@ -2,12 +2,49 @@
 
 | Attribute                                 | Description                                                                |
 | ----------------------------------------- | -------------------------------------------------------------------------- |
-| `#[diag(kind   = $kind:lit_str)]`         | `$kind` is either `"error"` or `"warn"`. Default is `"error"`.             |
+| `#[diag(kind   = $kind:lit_str)]`         | Built-in only: `$kind` is `"error"` or `"warn"`. Default is `"error"`.     |
+| `#[diag(kind   = $kind:expr)]`            | Any expression of the configured [`kind_type`](#custom-diagnostickind) (e.g. `MyKind::Bug`). |
+| `#[diag(kind_type = $ty:lit_str)]`        | Override `ErrorType::Kind` (default `error_enum::Kind`). Must implement `DiagnosticKind`. |
 | `#[diag(number = $number:lit_int)]`       | `$number` is the error number suffix.                                      |
 | `#[diag(msg    = $msg:lit_str)]`          | `$msg` is the error message.                                               |
 | `#[diag(label  = $label:lit_str)]`        | `$label` is the primary span label.                                        |
 | `#[diag(span_type = $span_type:lit_str)]` | `$span_type` is the type of the span. Default is `error_enum::SimpleSpan`. |
 | `#[diag(nested)]`                         | Mark this variant as a nested error wrapper.                               |
+
+String `kind = "..."` is invalid when `kind_type` is set; use an expression instead.
+
+## Custom `DiagnosticKind`
+
+Implement `error_enum::DiagnosticKind` for your kind type:
+
+- `code_prefix(&self) -> &str` — used by the default `ErrorType::code()` (`prefix` + `number`)
+- Feature-gated `as_annotate_snippets` / `as_ariadne` / `as_codespan` / `as_miette` — **required** for each enabled backend; this crate does not auto-map custom kinds
+
+```ignore
+#[derive(Clone, Copy, Default)]
+enum MyKind {
+    #[default]
+    Bug,
+    Lint,
+}
+
+impl error_enum::DiagnosticKind for MyKind {
+    fn code_prefix(&self) -> &str {
+        match self {
+            MyKind::Bug => "B",
+            MyKind::Lint => "L",
+        }
+    }
+    // ... implement as_* for enabled features ...
+}
+
+#[derive(Debug, error_enum::ErrorType)]
+#[diag(kind_type = "MyKind")]
+#[diag(kind = MyKind::Bug)]
+#[diag(number = "01")]
+#[diag(msg = "internal failure")]
+struct Ice;
+```
 
 # Primary Span (Field)
 
@@ -67,5 +104,7 @@ Messages from `note("...")` and `help("...")` are passed through as-is; this cra
 | `primary_label()`              | `primary_labels(): LabelVec1`        |
 | `additional()` 4-tuple         | `(Message, LabelVec1, Note\|Help)`   |
 | `AdditionalKind::Label`        | removed (labels live in `LabelVec1`) |
+| `fn kind(&self) -> Kind`       | `type Kind: DiagnosticKind` + `fn kind(&self) -> Self::Kind` |
+| `fn code(&self) -> &str`       | `fn code(&self) -> String` (default: `code_prefix` + `number`) |
 
 Primary labels on variants still use `#[diag(label = "...")]`.

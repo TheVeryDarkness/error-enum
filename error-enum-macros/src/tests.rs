@@ -92,9 +92,10 @@ fn basic() {
             impl ::core::error::Error for FileSystemError {}
             impl ::error_enum::ErrorType for FileSystemError {
                 type Span = ::error_enum::SimpleSpan;
+                type Kind = ::error_enum::Kind;
                 type Message = ::error_enum::String;
                 type Label = ::error_enum::String;
-                fn kind(&self) -> ::error_enum::Kind {
+                fn kind(&self) -> Self::Kind {
                     match self {
                         Self::FileNotFound { .. } => ::error_enum::Kind::Error,
                     }
@@ -102,11 +103,6 @@ fn basic() {
                 fn number(&self) -> &::core::primitive::str {
                     match self {
                         Self::FileNotFound { .. } => "01",
-                    }
-                }
-                fn code(&self) -> &::core::primitive::str {
-                    match self {
-                        Self::FileNotFound { .. } => "E01",
                     }
                 }
                 fn primary_span(&self) -> ::core::option::Option<::error_enum::SimpleSpan> {
@@ -189,9 +185,10 @@ fn deep() {
             impl ::core::error::Error for FileSystemError {}
             impl ::error_enum::ErrorType for FileSystemError {
                 type Span = ::error_enum::SimpleSpan;
+                type Kind = ::error_enum::Kind;
                 type Message = ::error_enum::String;
                 type Label = ::error_enum::String;
-                fn kind(&self) -> ::error_enum::Kind {
+                fn kind(&self) -> Self::Kind {
                     match self {
                         Self::AccessDenied => ::error_enum::Kind::Error,
                     }
@@ -199,11 +196,6 @@ fn deep() {
                 fn number(&self) -> &::core::primitive::str {
                     match self {
                         Self::AccessDenied => "00",
-                    }
-                }
-                fn code(&self) -> &::core::primitive::str {
-                    match self {
-                        Self::AccessDenied => "E00",
                     }
                 }
                 fn primary_span(&self) -> ::core::option::Option<::error_enum::SimpleSpan> {
@@ -280,9 +272,10 @@ fn nested() {
             impl ::core::error::Error for FileSystemError {}
             impl ::error_enum::ErrorType for FileSystemError {
                 type Span = ::error_enum::SimpleSpan;
+                type Kind = ::error_enum::Kind;
                 type Message = ::error_enum::String;
                 type Label = ::error_enum::String;
-                fn kind(&self) -> ::error_enum::Kind {
+                fn kind(&self) -> Self::Kind {
                     match self {
                         Self::FileError(..) => ::error_enum::Kind::Error,
                     }
@@ -290,11 +283,6 @@ fn nested() {
                 fn number(&self) -> &::core::primitive::str {
                     match self {
                         Self::FileError(..) => "01",
-                    }
-                }
-                fn code(&self) -> &::core::primitive::str {
-                    match self {
-                        Self::FileError(..) => "E01",
                     }
                 }
                 fn primary_span(&self) -> ::core::option::Option<::error_enum::SimpleSpan> {
@@ -371,9 +359,10 @@ fn escaped_braces_in_msg() {
             impl ::core::error::Error for FileSystemError {}
             impl ::error_enum::ErrorType for FileSystemError {
                 type Span = ::error_enum::SimpleSpan;
+                type Kind = ::error_enum::Kind;
                 type Message = ::error_enum::String;
                 type Label = ::error_enum::String;
-                fn kind(&self) -> ::error_enum::Kind {
+                fn kind(&self) -> Self::Kind {
                     match self {
                         Self::FileNotFound(..) => ::error_enum::Kind::Error,
                     }
@@ -381,11 +370,6 @@ fn escaped_braces_in_msg() {
                 fn number(&self) -> &::core::primitive::str {
                     match self {
                         Self::FileNotFound(..) => "01",
-                    }
-                }
-                fn code(&self) -> &::core::primitive::str {
-                    match self {
-                        Self::FileNotFound(..) => "E01",
                     }
                 }
                 fn primary_span(&self) -> ::core::option::Option<::error_enum::SimpleSpan> {
@@ -461,24 +445,23 @@ fn test_error_type_with_derive_input() {
             impl ::core::error::Error for ReadIntError {}
             impl ::error_enum::ErrorType for ReadIntError {
                 type Span = ::error_enum::SimpleSpan;
+                type Kind = ::error_enum::Kind;
                 type Message = ::error_enum::String;
                 type Label = ::error_enum::String;
-                fn kind(&self) -> ::error_enum::Kind {
+                fn kind(&self) -> Self::Kind {
                     match self {
-                        Self::ParseIntError(..) => ::error_enum::Kind::Error,
-                        Self::IOError(..) => ::error_enum::Kind::Error,
+                        Self::ParseIntError(..) => {
+                            <::error_enum::Kind as ::core::default::Default>::default()
+                        }
+                        Self::IOError(..) => {
+                            <::error_enum::Kind as ::core::default::Default>::default()
+                        }
                     }
                 }
                 fn number(&self) -> &::core::primitive::str {
                     match self {
                         Self::ParseIntError(..) => "00",
                         Self::IOError(..) => "01",
-                    }
-                }
-                fn code(&self) -> &::core::primitive::str {
-                    match self {
-                        Self::ParseIntError(..) => "E00",
-                        Self::IOError(..) => "E01",
                     }
                 }
                 fn primary_span(&self) -> ::core::option::Option<::error_enum::SimpleSpan> {
@@ -565,21 +548,17 @@ fn test_error_type_with_derive_input() {
             impl<'a> ::core::error::Error for ReadIntError<'a> {}
             impl<'a> ::error_enum::ErrorType for ReadIntError<'a> {
                 type Span = ::error_enum::SimpleSpan;
+                type Kind = ::error_enum::Kind;
                 type Message = ::error_enum::String;
                 type Label = ::error_enum::String;
-                fn kind(&self) -> ::error_enum::Kind {
+                fn kind(&self) -> Self::Kind {
                     match self {
-                        Self(..) => ::error_enum::Kind::Error,
+                        Self(..) => <::error_enum::Kind as ::core::default::Default>::default(),
                     }
                 }
                 fn number(&self) -> &::core::primitive::str {
                     match self {
                         Self(..) => "",
-                    }
-                }
-                fn code(&self) -> &::core::primitive::str {
-                    match self {
-                        Self(..) => "E",
                     }
                 }
                 fn primary_span(&self) -> ::core::option::Option<::error_enum::SimpleSpan> {
@@ -680,21 +659,17 @@ fn test_error_type_with_derive_input() {
             impl<'a> ::core::error::Error for ParseIntError<'a> {}
             impl<'a> ::error_enum::ErrorType for ParseIntError<'a> {
                 type Span = ::error_enum::SimpleSpan;
+                type Kind = ::error_enum::Kind;
                 type Message = ::error_enum::String;
                 type Label = ::error_enum::String;
-                fn kind(&self) -> ::error_enum::Kind {
+                fn kind(&self) -> Self::Kind {
                     match self {
-                        Self { .. } => ::error_enum::Kind::Error,
+                        Self { .. } => <::error_enum::Kind as ::core::default::Default>::default(),
                     }
                 }
                 fn number(&self) -> &::core::primitive::str {
                     match self {
                         Self { .. } => "",
-                    }
-                }
-                fn code(&self) -> &::core::primitive::str {
-                    match self {
-                        Self { .. } => "E",
                     }
                 }
                 fn primary_span(&self) -> ::core::option::Option<::error_enum::SimpleSpan> {
@@ -767,6 +742,79 @@ fn test_error_type_with_derive_input() {
                             ]
                             .into_iter(),
                         ),
+                    }
+                }
+            }
+        },
+    );
+}
+
+#[test]
+fn custom_kind_type_and_expr() {
+    test_error_type_derive(
+        quote! {
+            #[derive(Debug, ErrorType)]
+            #[diag(kind_type = "MyKind")]
+            #[diag(kind = MyKind::Bug)]
+            #[diag(number = "01")]
+            #[diag(msg = "boom")]
+            struct Ice;
+        },
+        quote! {
+            impl ::core::fmt::Display for Ice {
+                fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+                    match self {
+                        Self => ::core::write!(f, "boom"),
+                    }
+                }
+            }
+            impl ::core::error::Error for Ice {}
+            impl ::error_enum::ErrorType for Ice {
+                type Span = ::error_enum::SimpleSpan;
+                type Kind = MyKind;
+                type Message = ::error_enum::String;
+                type Label = ::error_enum::String;
+                fn kind(&self) -> Self::Kind {
+                    match self {
+                        Self => MyKind::Bug,
+                    }
+                }
+                fn number(&self) -> &::core::primitive::str {
+                    match self {
+                        Self => "01",
+                    }
+                }
+                fn primary_span(&self) -> ::core::option::Option<::error_enum::SimpleSpan> {
+                    match self {
+                        Self => ::core::option::Option::None,
+                    }
+                }
+                fn primary_message(&self) -> ::error_enum::String {
+                    ::error_enum::format!("{self}")
+                }
+                fn primary_labels(
+                    &self,
+                ) -> ::error_enum::LabelVec1<::error_enum::SimpleSpan, ::error_enum::String> {
+                    match self {
+                        Self => ::error_enum::vec1![(
+                            <::error_enum::SimpleSpan as ::core::default::Default>::default(),
+                            ::error_enum::format!("boom")
+                        )],
+                    }
+                }
+                fn additional(
+                    &self,
+                ) -> ::error_enum::Box<
+                    dyn ::core::iter::Iterator<
+                        Item = (
+                            ::error_enum::String,
+                            ::error_enum::LabelVec1<::error_enum::SimpleSpan, ::error_enum::String>,
+                            ::error_enum::AdditionalKind,
+                        ),
+                    >,
+                > {
+                    match self {
+                        Self => ::error_enum::Box::new([].into_iter()),
                     }
                 }
             }
