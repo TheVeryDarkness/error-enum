@@ -1,6 +1,4 @@
-#[cfg(any(feature = "annotate-snippets", feature = "codespan-reporting"))]
 use crate::Span;
-#[cfg(any(feature = "annotate-snippets", feature = "codespan-reporting"))]
 use alloc::vec::Vec;
 
 /// A label attached to a span.
@@ -10,7 +8,6 @@ pub type SpannedLabel<S, L> = (S, L);
 pub type LabelVec1<S, L> = mitsein::vec1::Vec1<SpannedLabel<S, L>>;
 
 /// One group of labels sharing the same source text, ordered by first appearance.
-#[cfg(any(feature = "annotate-snippets", feature = "codespan-reporting"))]
 pub(crate) struct LabelSourceGroup<S, L> {
     pub first_order: usize,
     pub source: S,
@@ -20,7 +17,6 @@ pub(crate) struct LabelSourceGroup<S, L> {
 /// Group `(order, span, label)` items by [`Span::share_source_text`].
 ///
 /// Groups are ordered by the minimum `order` (first declaration) in each group.
-#[cfg(any(feature = "annotate-snippets", feature = "codespan-reporting"))]
 pub(crate) fn group_labels_by_source<S: Span, L>(
     items: Vec<(usize, S, L)>,
 ) -> Vec<LabelSourceGroup<S, L>> {
