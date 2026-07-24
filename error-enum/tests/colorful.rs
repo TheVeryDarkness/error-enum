@@ -3,7 +3,7 @@
 #![expect(clippy::panic)]
 #![allow(clippy::unwrap_used)]
 
-use error_enum::{error_type, ErrorType, ErrorTypeExt, SimpleSpan};
+use error_enum::{error_type, ErrorType, SimpleSpan};
 use prettydiff::diff_lines;
 
 #[track_caller]
@@ -67,6 +67,7 @@ fn basic() {
 #[cfg(feature = "annotate-snippets")]
 fn annotate_snippets() {
     use annotate_snippets::display_list::FormatOptions;
+    use error_enum::ErrorTypeExt;
 
     let error = ColoredError::RedError(1, 2);
 
@@ -105,6 +106,8 @@ error[E05]: All in white.
 #[cfg(feature = "ariadne")]
 fn ariadne() {
     use ariadne::Config;
+    use error_enum::ErrorTypeExt;
+
     let error = ColoredError::RedError(1, 2);
 
     {
@@ -152,6 +155,7 @@ fn ariadne() {
 #[cfg(feature = "codespan-reporting")]
 fn codespan_reporting() {
     use codespan_reporting::term::Config;
+    use error_enum::ErrorTypeExt;
 
     let config = Config::default();
 
@@ -197,6 +201,7 @@ error[E05]: All in white.
 #[test]
 #[cfg(feature = "miette")]
 fn miette() {
+    use error_enum::ErrorTypeExt;
     use miette::{GraphicalReportHandler, GraphicalTheme, NarratableReportHandler};
 
     let error = ColoredError::RedError(1, 2);

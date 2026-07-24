@@ -2,6 +2,7 @@
 
 #![expect(clippy::panic)]
 #![allow(clippy::unwrap_used)]
+#![cfg(feature = "annotate-snippets")]
 
 use core::fmt;
 use error_enum_core::{vec1, Cow, ErrorType, ErrorTypeExt, Kind, LabelVec1, SimpleSpan};
@@ -46,7 +47,6 @@ impl ErrorType for MultiLabelError {
 }
 
 #[test]
-#[cfg(feature = "annotate-snippets")]
 fn annotate_snippets_merges_same_source_labels() {
     use annotate_snippets::display_list::FormatOptions;
 
@@ -66,7 +66,6 @@ fn annotate_snippets_merges_same_source_labels() {
 }
 
 #[test]
-#[cfg(feature = "annotate-snippets")]
 fn annotate_snippets_orders_sources_by_declaration() {
     use annotate_snippets::display_list::FormatOptions;
 
