@@ -1,8 +1,7 @@
 //! Integration tests for label source grouping in backends.
 
-#![expect(clippy::panic)]
-#![allow(clippy::unwrap_used)]
 #![cfg(feature = "annotate-snippets")]
+#![expect(clippy::expect_used)]
 
 use core::fmt;
 use error_enum_core::{vec1, Cow, ErrorType, ErrorTypeExt, Kind, LabelVec1, SimpleSpan};

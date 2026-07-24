@@ -1,5 +1,4 @@
 //! Nested `#[diag(nested)]` wrappers merge numbers and delegate the rest.
-#![expect(clippy::unwrap_used)]
 
 use error_enum::{error_type, ErrorType};
 

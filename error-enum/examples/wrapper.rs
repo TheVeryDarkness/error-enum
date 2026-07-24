@@ -8,12 +8,12 @@ use std::{io, path::PathBuf};
 #[derive(Debug, ErrorType)]
 enum ReadIntError {
     #[diag(msg = "Failed to parse integer from string due to: {0}")]
-    ParseIntError(std::num::ParseIntError),
+    ParseInt(std::num::ParseIntError),
     #[diag(msg = "Failed to read string due to: {0}")]
-    IOError(io::Error),
+    IO(io::Error),
     #[diag(msg = "{error}")]
     #[diag(help("canonicalizing {path:?}"))]
-    CanonicalizeError {
+    Canonicalize {
         path: PathBuf,
         error: std::io::Error,
     },
@@ -24,16 +24,16 @@ enum ReadIntError {
 struct IOError(io::Error);
 
 fn main() {
-    let parse_error = ReadIntError::ParseIntError("abc".parse::<i32>().unwrap_err());
+    let parse_error = ReadIntError::ParseInt("abc".parse::<i32>().unwrap_err());
     println!("ParseIntError: {}", parse_error);
 
-    let io_error = ReadIntError::IOError(io::Error::other("disk error"));
+    let io_error = ReadIntError::IO(io::Error::other("disk error"));
     println!("IOError: {}", io_error);
 
     let simple_io_error = IOError(io::Error::new(io::ErrorKind::NotFound, "file not found"));
     println!("Simple IOError: {}", simple_io_error);
 
-    let canonicalize_error = ReadIntError::CanonicalizeError {
+    let canonicalize_error = ReadIntError::Canonicalize {
         path: PathBuf::from("path/to/file"),
         error: io::Error::new(io::ErrorKind::NotFound, "file not found"),
     };
